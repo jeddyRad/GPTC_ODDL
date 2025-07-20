@@ -1,0 +1,6 @@
+{
+  // Configuration pour définir la variable d'environnement Django dans le terminal intégré
+  "terminal.integrated.env.windows": {
+    "DJANGO_SETTINGS_MODULE": "gptc_oddl.settings"
+  }
+} 
