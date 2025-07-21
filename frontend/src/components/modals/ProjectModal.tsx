@@ -9,6 +9,7 @@ import Select from 'react-select';
 import { Button } from '../common/Button';
 import { AttachmentDropzone } from '../common/AttachmentDropzone';
 import apiService from '@/services/api';
+import { uploadAttachment } from '@/services/api';
 
 interface ProjectModalProps {
   project: Project | null;
@@ -102,7 +103,7 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
   const loadProjectAttachments = async (projectId: string) => {
     try {
       const allAttachments = await apiService.getAttachments();
-      const projectAttachments = allAttachments.filter(att => att.projetId && att.projetId === projectId);
+      const projectAttachments = allAttachments.filter(att => att.relatedTo === 'project' && att.relatedId === projectId);
       setFormData(prev => ({
         ...prev,
         attachments: projectAttachments
@@ -164,7 +165,7 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
         // Rafraîchir la liste des pièces jointes après upload
         try {
           const allAttachments = await apiService.getAttachments();
-          const projectAttachments = allAttachments.filter(att => att.projetId && att.projetId === projectId);
+          const projectAttachments = allAttachments.filter(att => att.relatedTo === 'project' && att.relatedId === projectId);
           setFormData(prev => ({
             ...prev,
             attachments: projectAttachments
@@ -233,17 +234,26 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
   };
 
   // Ajout des handlers conformes à AttachmentDropzone
-  const handleAttachmentUpload = (files: File[]) => {
-    const newAttachments = files.map(file => ({
-      id: `temp-${Date.now()}-${file.name}`,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      url: URL.createObjectURL(file),
-    }));
+  const handleAttachmentUpload = async (files: File[]) => {
+    if (!project?.id) return;
+    
+    const newAttachments = [...formData.attachments];
+    for (const file of files) {
+      try {
+        const attachment = await uploadAttachment({ 
+          file, 
+          relatedTo: 'project', 
+          relatedId: project.id 
+        });
+        newAttachments.push(attachment as Attachment);
+      } catch (error) {
+        console.error('Erreur lors de l\'upload:', error);
+        setError('Erreur lors de l\'upload du fichier');
+      }
+    }
     setFormData(prev => ({
       ...prev,
-      attachments: [...(prev.attachments ?? []), ...newAttachments],
+      attachments: newAttachments,
     }));
   };
 
@@ -461,9 +471,12 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
               onUpload={handleAttachmentUpload}
               onDelete={handleAttachmentDelete}
               onDownload={handleAttachmentDownload}
+              relatedTo="project"
+              relatedId={project?.id || ''}
               accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/jpeg,image/png,text/plain"
               maxSize={10 * 1024 * 1024}
-              helpText={t('attachment.helpText')}
+              disabled={!project?.id}
+              helpText={!project?.id ? 'Créez d\'abord le projet pour ajouter des pièces jointes' : t('attachment.helpText')}
               uploadingText={t('attachment.uploading')}
               errorText={t('attachment.error')}
               downloadText={t('attachment.download')}

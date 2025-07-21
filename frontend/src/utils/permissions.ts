@@ -57,10 +57,16 @@ export const getUserPermissions = (user: User | null): UserPermissions => {
 
 export const canUserEditProject = (user: User | null, project: any): boolean => {
   if (!user || !project) return false;
+  
+  // ADMIN peut toujours éditer
+  if (user.role === 'ADMIN') return true;
+  
   const permissions = getUserPermissions(user);
   if (permissions.canEditProjects) return true;
+  
   // Project creator can always edit
   if (project.createdBy === user.id) return true;
+  
   // Team members, memberIds, memberDetails can edit if MANAGER
   if (user.role === 'MANAGER') {
     if (Array.isArray(project.teamMembers) && project.teamMembers.includes(user.id)) return true;

@@ -98,7 +98,12 @@ export function TaskBoard() {
     if (!user) {
       hasAccess = false;
     } else if (user.role === 'ADMIN') {
-      hasAccess = true; // Admin voit tout
+      // Admin voit tout sauf les tâches personnelles d'autres utilisateurs
+      if (task.type === 'personnel' && task.creatorId !== user.id) {
+        hasAccess = false;
+      } else {
+        hasAccess = true;
+      }
     } else if (user.role === 'MANAGER') {
       hasAccess = Boolean(
         (Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)) ||

@@ -78,7 +78,8 @@ export const AttachmentDropzone: React.FC<AttachmentDropzoneProps> = ({
     for (const file of files) {
       try {
         const attachment = await uploadAttachment({ file, relatedTo: relatedTo as 'task' | 'project' | 'user', relatedId });
-        onUpload([...files, attachment]); // Ajoute la nouvelle pièce jointe à la liste
+        // Appeler onUpload avec le fichier original pour l'affichage temporaire
+        onUpload([file]);
       } catch (e) {
         console.error('Erreur lors de l’upload de la pièce jointe :', e);
       }

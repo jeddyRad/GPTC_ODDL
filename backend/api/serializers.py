@@ -191,7 +191,7 @@ class UtilisateurDetailleSerializer(serializers.ModelSerializer):
 
 class PieceJointeSerializer(serializers.ModelSerializer):
     """API serializer for the PieceJointe (Attachment) model."""
-    name = serializers.CharField(source='name')
+    url = serializers.SerializerMethodField()
     mimeType = serializers.CharField(source='type_mime')
     isEncrypted = serializers.BooleanField(source='est_chiffre')
     relatedTo = serializers.CharField(source='related_to')
@@ -199,6 +199,15 @@ class PieceJointeSerializer(serializers.ModelSerializer):
     uploadedById = serializers.UUIDField(source='telecharge_par.id', read_only=True)
     uploadedByDetails = UtilisateurSimpleSerializer(source='telecharge_par', read_only=True)
     createdAt = serializers.DateTimeField(source='date_creation', read_only=True)
+
+    def get_url(self, obj):
+        """Retourne l'URL du fichier"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
 
     class Meta:
         model = PieceJointe
@@ -339,29 +348,75 @@ class TacheSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tache
-        exclude = ['creator']
-        # ou bien, si tu veux l'inclure en read_only :
-        # fields = '__all__'
-        # read_only_fields = ['creator']
+        fields = [
+            'id', 'title', 'description', 'status', 'priority', 'deadline', 'completion_date',
+            'type', 'estimated_time', 'tracked_time', 'workload_points', 'tags',
+            'creatorId', 'creatorDetails', 'assigneeIds', 'assigneeDetails',
+            'serviceId', 'serviceIdInput', 'serviceDetails', 'projectId',
+            'estimatedTime', 'trackedTime', 'workloadPoints', 'isOverdue',
+            'attachments', 'comments', 'createdAt', 'updatedAt', 'completionDate'
+        ]
+        read_only_fields = ['creatorId', 'creatorDetails', 'assigneeDetails', 'serviceId', 'serviceDetails', 'isOverdue', 'attachments', 'comments', 'createdAt', 'updatedAt', 'completionDate']
 
     def validate(self, data):
+        import logging
+        logging.debug(f"[TACHE VALIDATE] data: {data}")
+        
         # Validation du type et cohérence des relations
         t_type = data.get('type')
         project = data.get('project', None)
         service = data.get('service', None)
-        if t_type == 'projet' and not project:
-            raise serializers.ValidationError("Une tâche de type 'projet' doit être liée à un projet.")
-        if t_type == 'service' and not service:
-            raise serializers.ValidationError("Une tâche de type 'service' doit être liée à un service.")
-        if t_type == 'personnel' and (project or service):
-            raise serializers.ValidationError("Une tâche personnelle ne doit pas être liée à un projet ou un service.")
+        
+        # Vérifier les IDs dans les données de contexte
+        service_id = self.get_uuid_from_context('serviceIdInput')
+        project_id = self.get_uuid_from_context('projectId')
+        
+        logging.debug(f"[TACHE VALIDATE] type: {t_type}")
+        logging.debug(f"[TACHE VALIDATE] service_id: {service_id}")
+        logging.debug(f"[TACHE VALIDATE] project_id: {project_id}")
+        
+        # Si c'est une mise à jour (instance existe), vérifier si le type change
+        if hasattr(self, 'instance') and self.instance:
+            current_type = self.instance.type
+            logging.debug(f"[TACHE VALIDATE] current_type: {current_type}")
+            
+            # Si le type ne change pas, ne pas valider les relations
+            if t_type == current_type:
+                logging.debug(f"[TACHE VALIDATE] Type unchanged, skipping relation validation")
+                return data
+        
+        # Validation pour création ou changement de type
+        if t_type == 'projet':
+            if not project and not project_id:
+                raise serializers.ValidationError("Une tâche de type 'projet' doit être liée à un projet.")
+        elif t_type == 'service':
+            if not service and not service_id:
+                raise serializers.ValidationError("Une tâche de type 'service' doit être liée à un service.")
+        elif t_type == 'personnel':
+            if project or service or project_id or service_id:
+                raise serializers.ValidationError("Une tâche personnelle ne doit pas être liée à un projet ou un service.")
+        
         return data
 
     def get_uuid_from_context(self, name):
+        import logging
+        logging.debug(f"[TACHE SERIALIZER] get_uuid_from_context - name: {name}")
+        logging.debug(f"[TACHE SERIALIZER] initial_data: {getattr(self, 'initial_data', None)}")
+        logging.debug(f"[TACHE SERIALIZER] request.data: {self.context.get('request').data if self.context.get('request') else None}")
+        
+        # Vérifier dans initial_data d'abord
         if hasattr(self, 'initial_data') and self.initial_data and name in self.initial_data:
-            return self.initial_data[name]
+            value = self.initial_data[name]
+            logging.debug(f"[TACHE SERIALIZER] Found in initial_data: {value}")
+            return value
+        
+        # Vérifier dans request.data
         if self.context.get('request') and name in self.context['request'].data:
-            return self.context['request'].data.get(name)
+            value = self.context['request'].data.get(name)
+            logging.debug(f"[TACHE SERIALIZER] Found in request.data: {value}")
+            return value
+        
+        logging.debug(f"[TACHE SERIALIZER] Not found: {name}")
         return None
 
     def create(self, validated_data):
@@ -376,6 +431,10 @@ class TacheSerializer(serializers.ModelSerializer):
             service_id = self.get_uuid_from_context('serviceIdInput')
             project_id = self.get_uuid_from_context('projectId')
             t_type = validated_data.get('type')
+            
+            logging.debug(f"[TACHE CREATE] service_id: {service_id}")
+            logging.debug(f"[TACHE CREATE] project_id: {project_id}")
+            logging.debug(f"[TACHE CREATE] type: {t_type}")
             if t_type == 'service':
                 if not service_id:
                     logging.error("[TACHE CREATE] serviceIdInput manquant pour tâche de service")
@@ -393,9 +452,13 @@ class TacheSerializer(serializers.ModelSerializer):
                 validated_data['project'] = None
             if 'creator' in validated_data:
                 validated_data.pop('creator')
+            # Filtrer les champs qui ne sont pas dans le modèle Tache
+            model_fields = {k: v for k, v in validated_data.items() 
+                          if k not in ['assigneeIds', 'serviceIdInput', 'projectId']}
+            
             tache = Tache.objects.create(
                 creator=creator,
-                **{k: v for k, v in validated_data.items() if k not in ['assigneeIds']}
+                **model_fields
             )
             assignee_ids = validated_data.get('assigneeIds', [])
             if assignee_ids:
@@ -408,22 +471,40 @@ class TacheSerializer(serializers.ModelSerializer):
             raise
 
     def update(self, instance, validated_data):
+        import logging
+        logging.debug(f"[TACHE UPDATE] validated_data: {validated_data}")
+        
         service_id = self.get_uuid_from_context('serviceIdInput')
         project_id = self.get_uuid_from_context('projectId')
         t_type = validated_data.get('type')
-        if t_type == 'service':
-            if not service_id:
-                raise serializers.ValidationError({'serviceIdInput': 'Ce champ est requis pour une tâche de service'})
+        
+        logging.debug(f"[TACHE UPDATE] service_id: {service_id}")
+        logging.debug(f"[TACHE UPDATE] project_id: {project_id}")
+        logging.debug(f"[TACHE UPDATE] type: {t_type}")
+        logging.debug(f"[TACHE UPDATE] instance.type: {instance.type}")
+        
+        # Si le type change, vérifier les nouvelles relations
+        if t_type and t_type != instance.type:
+            if t_type == 'service':
+                if not service_id:
+                    raise serializers.ValidationError({'serviceIdInput': 'Ce champ est requis pour une tâche de service'})
+                instance.service = Service.objects.get(id=service_id)
+                instance.project = None
+            elif t_type == 'projet':
+                if not project_id:
+                    raise serializers.ValidationError({'projectId': 'Ce champ est requis pour une tâche de projet'})
+                instance.project = Projet.objects.get(id=project_id)
+                instance.service = None
+            elif t_type == 'personnel':
+                instance.service = None
+                instance.project = None
+        # Si le type ne change pas, utiliser les relations existantes
+        elif t_type == 'service' and service_id:
+            # Mise à jour du service si fourni
             instance.service = Service.objects.get(id=service_id)
-            instance.project = None
-        elif t_type == 'projet':
-            if not project_id:
-                raise serializers.ValidationError({'projectId': 'Ce champ est requis pour une tâche de projet'})
+        elif t_type == 'projet' and project_id:
+            # Mise à jour du projet si fourni
             instance.project = Projet.objects.get(id=project_id)
-            instance.service = None
-        elif t_type == 'personnel':
-            instance.service = None
-            instance.project = None
         assignee_ids = validated_data.get('assigneeIds', None)
         if assignee_ids is not None:
             assignees = Utilisateur.objects.filter(id__in=assignee_ids)

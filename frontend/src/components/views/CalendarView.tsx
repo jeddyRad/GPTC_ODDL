@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { ChevronLeft, ChevronRight, Clock, AlertCircle, Plus, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertCircle, Plus, ExternalLink, Calendar, CheckCircle, XCircle } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { calendarService, CalendarEvent, CalendarFilter } from '@/services/calendarService';
@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog } from '@headlessui/react';
 import { TaskModal } from '@/components/modals/TaskModal';
 import { ProjectModal } from '@/components/modals/ProjectModal';
+import { Task, Project } from '@/types';
 
 // Date utility functions
 const startOfMonth = (date: Date): Date => {
@@ -34,9 +35,21 @@ const addMonths = (date: Date, months: number): Date => {
 
 export function CalendarView() {
   const { t } = useTranslation();
-  const { tasks } = useData();
+  const { tasks, projects } = useData();
   const { user } = useAuth();
   const { addNotification } = useNotification();
+  
+  // Gestion d'erreur pour éviter les problèmes de rendu
+  if (!tasks || !projects) {
+    return (
+      <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Chargement du calendrier...</p>
+        </div>
+      </div>
+    );
+  }
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [showDateModal, setShowDateModal] = useState(false);
@@ -54,8 +67,49 @@ export function CalendarView() {
   // Filter tasks that are assigned to the current user or created by them
   const userTasks = tasks.filter(task => 
     (task.assignedTo && task.assignedTo.includes(user?.id || '')) || 
-    task.createdBy === user?.id
+    (task.assigneeIds && task.assigneeIds.includes(user?.id || '')) ||
+    task.createdBy === user?.id ||
+    task.creatorId === user?.id
   );
+
+  // Filter projects that the user is involved in
+  const userProjects = projects.filter(project => 
+    project.creatorId === user?.id ||
+    (project.memberIds && project.memberIds.includes(user?.id || '')) ||
+    project.chefId === user?.id
+  );
+
+  // Debug: afficher les projets disponibles une seule fois
+  useEffect(() => {
+    if (userProjects.length > 0) {
+      console.log('Projets utilisateur disponibles:', userProjects.map(p => ({
+        id: p.id,
+        name: p.name,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        color: p.color,
+        status: p.status,
+        startDateType: typeof p.startDate,
+        endDateType: typeof p.endDate
+      })));
+      
+      // Vérifier les projets avec des dates valides
+      const projectsWithValidDates = userProjects.filter(p => {
+        if (!p.startDate || !p.endDate) return false;
+        const startDate = typeof p.startDate === 'string' ? new Date(p.startDate) : p.startDate;
+        const endDate = typeof p.endDate === 'string' ? new Date(p.endDate) : p.endDate;
+        return !isNaN(startDate.getTime()) && !isNaN(endDate.getTime());
+      });
+      
+      console.log('Projets avec dates valides:', projectsWithValidDates.length);
+      console.log('Projets avec dates valides:', projectsWithValidDates.map(p => ({
+        name: p.name,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        color: p.color
+      })));
+    }
+  }, [userProjects]);
 
   // Get tasks for a specific date
   const getTasksForDate = (date: Date) => {
@@ -64,6 +118,49 @@ export function CalendarView() {
       return taskDate.getDate() === date.getDate() &&
              taskDate.getMonth() === date.getMonth() &&
              taskDate.getFullYear() === date.getFullYear();
+    });
+  };
+
+  // Get events for a specific date
+  const getEventsForDate = (date: Date) => {
+    return events.filter(event => {
+      const eventDate = new Date(event.start);
+      return eventDate.getDate() === date.getDate() &&
+             eventDate.getMonth() === date.getMonth() &&
+             eventDate.getFullYear() === date.getFullYear();
+    });
+  };
+
+  // Get projects for a specific date (projects that span this date)
+  const getProjectsForDate = (date: Date) => {
+    return userProjects.filter(project => {
+      if (!project.startDate || !project.endDate) return false;
+      
+      // Convertir les dates en objets Date si elles sont des chaînes
+      const startDate = typeof project.startDate === 'string' ? new Date(project.startDate) : project.startDate;
+      const endDate = typeof project.endDate === 'string' ? new Date(project.endDate) : project.endDate;
+      
+      // Vérifier que les dates sont valides
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.log(`Dates invalides pour le projet ${project.name}:`, { startDate: project.startDate, endDate: project.endDate });
+        return false;
+      }
+      
+      const isInRange = date >= startDate && date <= endDate;
+      
+      // Debug: afficher les projets trouvés
+      if (isInRange) {
+        console.log(`Projet ${project.name} trouvé pour la date ${date.toDateString()}:`, {
+          projectId: project.id,
+          projectName: project.name,
+          startDate: startDate.toDateString(),
+          endDate: endDate.toDateString(),
+          currentDate: date.toDateString(),
+          color: project.color
+        });
+      }
+      
+      return isInRange;
     });
   };
 
@@ -100,101 +197,129 @@ export function CalendarView() {
   // Charger les événements quand le filtre change
   useEffect(() => {
     fetchEvents();
-  }, [filter, fetchEvents]);
+  }, [fetchEvents]);
 
-  // Convertir les tâches en événements si l'API ne le fait pas
-  useEffect(() => {
-    // Si nous n'avons pas d'API qui retourne les événements, utilisons les tâches
-    if (events.length === 0 && tasks.length > 0) {
-      const taskEvents = tasks
-        .filter(task => task.assignedTo.includes(user?.id || '') || task.createdBy === user?.id)
-        .map(task => calendarService.convertTaskToEvent(task));
-      
-      setEvents(taskEvents);
-    }
-  }, [tasks, user, events.length]);
+  // Get upcoming tasks (next 7 days)
+  const upcomingTasks = userTasks
+    .filter(task => {
+      const taskDate = new Date(task.deadline);
+      const today = new Date();
+      const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return taskDate >= today && taskDate <= nextWeek && task.status !== 'completed';
+    })
+    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+    .slice(0, 5);
 
-  // Résumé global des activités
-  const globalStats = React.useMemo(() => {
-    const tasks = events.filter(e => e.type === 'task');
-    const projects = events.filter(e => e.type === 'project');
-    const tasksInProgress = tasks.filter(e => e.progress && e.progress < 100).length;
-    const tasksCompleted = tasks.filter(e => e.progress === 100).length;
-    const projectsInProgress = projects.filter(e => e.progress && e.progress < 100).length;
-    const projectsCompleted = projects.filter(e => e.progress === 100).length;
-    const overdueTasks = tasks.filter(e => e.end && e.progress !== 100 && e.end < new Date()).length;
-    const avgProgress = tasks.length > 0 ? Math.round(tasks.reduce((acc, t) => acc + (t.progress || 0), 0) / tasks.length) : 0;
-    return {
-      tasksInProgress,
-      tasksCompleted,
-      projectsInProgress,
-      projectsCompleted,
-      overdueTasks,
-      avgProgress
-    };
-  }, [events]);
+  // Get events for selected date
+  const eventsForSelectedDate = selectedDate ? getEventsForDate(selectedDate) : [];
+  const tasksForSelectedDate = selectedDate ? getTasksForDate(selectedDate) : [];
+  const projectsForSelectedDate = selectedDate ? getProjectsForDate(selectedDate) : [];
 
-  
-
-  // Retourne les événements couvrant une date donnée
-  const getEventsForDate = (date: Date) => {
-    return events.filter(event => {
-      const start = new Date(event.start);
-      const end = new Date(event.end);
-      // L'événement couvre la date si la date est entre start et end (inclus)
-      return date >= start && date <= end;
-    });
-  };
-
-  // Détermine la couleur de fond dominante pour une case selon les événements
-  const getCellBgColor = (eventsForDay: CalendarEvent[]) => {
-    if (eventsForDay.some(e => e.type === 'project')) {
-      // Projet prioritaire sur la couleur
-      const project = eventsForDay.find(e => e.type === 'project');
-      return project?.color || 'bg-blue-200';
-    }
-    if (eventsForDay.some(e => e.type === 'task' && e.progress !== 100)) {
-      return 'bg-green-100';
-    }
-    if (eventsForDay.some(e => e.type === 'task' && e.progress === 100)) {
-      return 'bg-gray-100';
-    }
-    return 'bg-white';
-  };
-
-  // Naviguer entre les mois
-  const navigateMonth = (action: 'prev' | 'next' | 'today') => {
-    setCurrentDate(current => {
-      if (action === 'prev') return addMonths(current, -1);
-      if (action === 'next') return addMonths(current, 1);
-      return new Date();
-    });
-  };
-
-  
-
-  // Palette minimaliste
+  // Couleurs pour les différents types d'événements
   const PROJECT_COLOR = 'bg-blue-500 dark:bg-blue-400';
-  const TASK_COLOR = 'bg-green-500 dark:bg-green-400';
-  const EVENT_COLOR = 'bg-violet-500 dark:bg-violet-400';
-  const TASK_DOT_COLORS = {
-    low: 'bg-green-400 dark:bg-green-300',
-    medium: 'bg-yellow-400 dark:bg-yellow-300',
-    high: 'bg-orange-400 dark:bg-orange-300',
+  const EVENT_COLOR = 'bg-purple-500 dark:bg-purple-400';
+  const TASK_COLOR = 'bg-gray-500 dark:bg-gray-400';
+
+  // Couleurs pour les priorités des tâches
+  const TASK_PRIORITY_COLORS = {
+    low: 'bg-green-500 dark:bg-green-400',
+    medium: 'bg-yellow-500 dark:bg-yellow-400',
+    high: 'bg-orange-500 dark:bg-orange-400',
     urgent: 'bg-red-500 dark:bg-red-400',
   };
 
-  // Génère la grille des jours avec barres/ronds minimalistes
+  // Couleurs pour les statuts des tâches
+  const TASK_STATUS_COLORS = {
+    todo: 'bg-gray-500 dark:bg-gray-400',
+    in_progress: 'bg-blue-500 dark:bg-blue-400',
+    review: 'bg-yellow-500 dark:bg-yellow-400',
+    completed: 'bg-green-500 dark:bg-green-400',
+  };
+
+  const navigateMonth = (action: 'prev' | 'next' | 'today') => {
+    switch (action) {
+      case 'prev':
+        setCurrentDate(addMonths(currentDate, -1));
+        break;
+      case 'next':
+        setCurrentDate(addMonths(currentDate, 1));
+        break;
+      case 'today':
+        setCurrentDate(new Date());
+        break;
+    }
+  };
+
+  // Génère la grille des jours avec barres/ronds améliorés
   const renderCalendarDays = () => {
     const days = [];
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const firstDayOfWeek = firstDayOfMonth.getDay();
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
 
+    // Calculer les projets qui traversent ce mois
+    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    
+    const projectsInMonth = userProjects.filter(project => {
+      if (!project.startDate || !project.endDate) return false;
+      const startDate = new Date(project.startDate);
+      const endDate = new Date(project.endDate);
+      return startDate <= monthEnd && endDate >= monthStart;
+    });
+
+    // Créer un mapping des projets par jour pour l'affichage multi-jours
+    const projectMapping: { [key: string]: { project: any; startDay: number; endDay: number; row: number } } = {};
+    let currentRow = 0;
+
+    projectsInMonth.forEach(project => {
+      if (!project.startDate || !project.endDate) return;
+      
+      // Convertir les dates en objets Date si elles sont des chaînes
+      const startDate = typeof project.startDate === 'string' ? new Date(project.startDate) : project.startDate;
+      const endDate = typeof project.endDate === 'string' ? new Date(project.endDate) : project.endDate;
+      
+      // Vérifier que les dates sont valides
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.log(`Dates invalides pour le projet ${project.name} dans le mapping:`, { 
+          startDate: project.startDate, 
+          endDate: project.endDate 
+        });
+        return;
+      }
+      
+      // Calculer les jours dans ce mois (même si le projet commence avant)
+      const effectiveStartDate = startDate < monthStart ? monthStart : startDate;
+      const effectiveEndDate = endDate > monthEnd ? monthEnd : endDate;
+      
+      const startDay = effectiveStartDate.getDate();
+      const endDay = effectiveEndDate.getDate();
+      
+      console.log(`Mapping projet ${project.name}:`, {
+        projectId: project.id,
+        startDay,
+        endDay,
+        row: currentRow,
+        color: project.color,
+        originalStart: startDate.toDateString(),
+        originalEnd: endDate.toDateString(),
+        effectiveStart: effectiveStartDate.toDateString(),
+        effectiveEnd: effectiveEndDate.toDateString()
+      });
+      
+      projectMapping[project.id] = {
+        project,
+        startDay,
+        endDay,
+        row: currentRow
+      };
+      currentRow++;
+    });
+
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfWeek; i++) {
       days.push(
-        <div key={`empty-${i}`} className="h-32 border border-gray-200 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-800/50"></div>
+        <div key={`empty-${i}`} className="h-40 border border-gray-200 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-800/50"></div>
       );
     }
 
@@ -202,57 +327,102 @@ export function CalendarView() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const eventsForDay = getEventsForDate(date);
+      const tasksForDay = getTasksForDate(date);
+      const projectsForDay = getProjectsForDate(date);
       const isToday = date.toDateString() === new Date().toDateString();
-      // Sépare projets/événements multi-jours et tâches ponctuelles
-      const bars = eventsForDay.filter(e => {
+      
+      // Ronds pour tâches ponctuelles
+      const taskDots = tasksForDay.slice(0, 6); // Limiter à 6 tâches par jour
+      
+      // Barres pour événements multi-jours
+      const eventBars = eventsForDay.filter(e => {
         const start = Number(new Date(e.start));
         const end = Number(new Date(e.end));
         return (end - start) / (1000 * 60 * 60 * 24) >= 1;
-      });
-      const dots = eventsForDay.filter(e => {
-        const start = Number(new Date(e.start));
-        const end = Number(new Date(e.end));
-        return (end - start) / (1000 * 60 * 60 * 24) < 1 && e.type === 'task';
-      });
+      }).slice(0, 2); // Limiter à 2 événements par jour
+
       days.push(
         <div
           key={day}
-          className={`h-32 border border-gray-200 dark:border-gray-700 p-2 cursor-pointer bg-white dark:bg-gray-900 ${isToday ? 'ring-2 ring-primary-500' : ''} hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative`}
+          className={`h-40 border border-gray-200 dark:border-gray-700 p-2 cursor-pointer bg-white dark:bg-gray-900 ${isToday ? 'ring-2 ring-primary-500' : ''} hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative`}
           onClick={() => handleDateClick(date)}
         >
           <div className="flex items-center justify-between mb-2">
             <span className={`text-sm font-medium ${isToday ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>{day}</span>
+            {(tasksForDay.length > 0 || projectsForDay.length > 0 || eventsForDay.length > 0) && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {tasksForDay.length + projectsForDay.length + eventsForDay.length}
+              </span>
+            )}
           </div>
-          {/* Barres horizontales pour projets/événements multi-jours */}
+          
+          {/* Barres pour projets (utilisent la couleur du projet) */}
           <div className="absolute left-2 right-2 top-8 flex flex-col gap-1 pointer-events-none">
-            {bars.map((event, idx) => {
-              let color = event.type === 'project' ? PROJECT_COLOR : EVENT_COLOR;
-              if (event.type === 'task') color = TASK_COLOR;
+            {projectsForDay.slice(0, 3).map((project, idx) => {
+              const projectInfo = projectMapping[project.id];
+              if (!projectInfo) {
+                console.log(`Projet ${project.name} non trouvé dans le mapping pour le jour ${day}`);
+                return null;
+              }
+              
+              const { startDay, endDay, row } = projectInfo;
+              const isStart = day === startDay;
+              const isEnd = day === endDay;
+              const isMiddle = day > startDay && day < endDay;
+              const isSingleDay = startDay === endDay;
+              
+              // Calculer la position horizontale pour les projets multi-jours
+              const leftOffset = isStart ? 0 : -2;
+              const rightOffset = isEnd ? 0 : 2;
+              
               return (
                 <div
-                  key={event.id + idx}
-                  className={`h-2 rounded-full ${color} opacity-80 pointer-events-auto`}
-                  title={event.title}
-                  style={{ minWidth: 24 }}
-                />
+                  key={`project-${project.id}-${idx}`}
+                  className={`h-3 rounded-sm opacity-90 pointer-events-auto flex items-center px-2 text-xs font-medium text-white shadow-sm ${
+                    isStart || isSingleDay ? 'rounded-l-md' : ''
+                  } ${
+                    isEnd || isSingleDay ? 'rounded-r-md' : ''
+                  } ${
+                    isMiddle ? 'rounded-none' : ''
+                  }`}
+                  style={{ 
+                    backgroundColor: project.color || '#3B82F6',
+                    minWidth: 24,
+                    marginLeft: leftOffset,
+                    marginRight: rightOffset,
+                    zIndex: 10 - row
+                  }}
+                  title={`Projet: ${project.name}${isStart ? ' (Début)' : isEnd ? ' (Fin)' : ''} - ${project.status || 'En cours'}`}
+                >
+                  {(isStart || isSingleDay) && (
+                    <span className="truncate text-white text-xs font-medium">
+                      {project.name.length > 8 ? project.name.substring(0, 8) + '...' : project.name}
+                    </span>
+                  )}
+                </div>
               );
             })}
+            
+            {/* Barres pour événements multi-jours */}
+            {eventBars.map((event, idx) => (
+              <div
+                key={`event-${event.id}-${idx}`}
+                className={`h-2 rounded-full ${EVENT_COLOR} opacity-80 pointer-events-auto`}
+                style={{ minWidth: 24 }}
+                title={event.title}
+              />
+            ))}
           </div>
-          {/* Petits ronds pour tâches ponctuelles */}
-          <div className="flex flex-wrap gap-1 mt-12">
-            {dots.map((event, idx) => {
-              let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium';
-              if (event.type === 'task' && 'priority' in event && typeof (event as any).priority === 'string') {
-                priority = (event as any).priority as 'low' | 'medium' | 'high' | 'urgent';
-              }
-              return (
-                <span
-                  key={event.id + idx}
-                  className={`w-3 h-3 rounded-full ${TASK_DOT_COLORS[priority]} border border-white dark:border-gray-900 shadow pointer-events-auto`}
-                  title={event.title}
-                />
-              );
-            })}
+          
+          {/* Ronds pour tâches (utilisent la couleur de priorité) */}
+          <div className="flex flex-wrap gap-1 mt-20">
+            {taskDots.map((task, idx) => (
+              <span
+                key={`task-${task.id}-${idx}`}
+                className={`w-3 h-3 rounded-full border border-white dark:border-gray-900 shadow pointer-events-auto ${TASK_PRIORITY_COLORS[task.priority]}`}
+                title={`Tâche: ${task.title} (${task.priority}) - ${task.status}`}
+              />
+            ))}
           </div>
         </div>
       );
@@ -260,16 +430,65 @@ export function CalendarView() {
     return days;
   };
 
-  // Légende minimaliste à droite
-  const MinimalistLegend = () => (
-    <div className="fixed right-8 top-32 flex flex-col gap-2 bg-white/80 dark:bg-gray-900/80 p-3 rounded shadow text-xs z-20">
-      <div className="flex items-center gap-2"><span className={`w-6 h-2 rounded-full ${PROJECT_COLOR}`}></span> {t('calendar.legend.project')}</div>
-      <div className="flex items-center gap-2"><span className={`w-6 h-2 rounded-full ${EVENT_COLOR}`}></span> {t('calendar.legend.event')}</div>
-      <div className="flex items-center gap-2"><span className={`w-6 h-2 rounded-full ${TASK_COLOR}`}></span> {t('calendar.legend.longTask')}</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-300 border"></span> {t('calendar.legend.taskLow')}</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-300 border"></span> {t('calendar.legend.taskMedium')}</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-orange-400 dark:bg-orange-300 border"></span> {t('calendar.legend.taskHigh')}</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 dark:bg-red-400 border"></span> {t('calendar.legend.taskUrgent')}</div>
+  // Légende améliorée
+  const CalendarLegend = () => (
+    <div className="sticky top-4 right-0 flex flex-col gap-3 bg-white/95 dark:bg-gray-900/95 p-4 rounded-lg shadow-lg text-xs backdrop-blur-sm border border-gray-200 dark:border-gray-700 max-w-xs">
+      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Légende</h4>
+      
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-3 rounded-sm bg-blue-500"></div>
+          <span className="text-gray-700 dark:text-gray-300">Projets (barres colorées)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-4 h-2 rounded-full bg-purple-500"></span>
+          <span className="text-gray-700 dark:text-gray-300">Événements</span>
+        </div>
+      </div>
+      
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+        <h5 className="font-medium text-gray-900 dark:text-white mb-2">Priorités des tâches</h5>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-green-500 border"></span>
+            <span className="text-gray-700 dark:text-gray-300">Faible</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-yellow-500 border"></span>
+            <span className="text-gray-700 dark:text-gray-300">Moyenne</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-orange-500 border"></span>
+            <span className="text-gray-700 dark:text-gray-300">Élevée</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-500 border"></span>
+            <span className="text-gray-700 dark:text-gray-300">Urgente</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+        <h5 className="font-medium text-gray-900 dark:text-white mb-2">Statuts des projets</h5>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-green-500"></span>
+            <span className="text-gray-700 dark:text-gray-300">Actif</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+            <span className="text-gray-700 dark:text-gray-300">Planification</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
+            <span className="text-gray-700 dark:text-gray-300">En attente</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-gray-500"></span>
+            <span className="text-gray-700 dark:text-gray-300">Terminé</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -279,74 +498,60 @@ export function CalendarView() {
     setShowDateModal(true);
   };
 
-  // Handle modal close
   const handleModalClose = () => {
     setShowDateModal(false);
     setSelectedDate(null);
   };
 
-  // Handle event CRUD operations
   const handleEventCreate = (newEvent: CalendarEvent) => {
     setEvents(prev => [...prev, newEvent]);
-    addNotification({
-      type: 'success',
-      message: 'Événement créé avec succès'
-    });
+    setShowEventModal(false);
   };
 
   const handleEventUpdate = (updatedEvent: CalendarEvent) => {
     setEvents(prev => prev.map(event => 
       event.id === updatedEvent.id ? updatedEvent : event
     ));
-    addNotification({
-      type: 'success',
-      message: 'Événement mis à jour avec succès'
-    });
+    setShowEventModal(false);
   };
 
   const handleEventDelete = (eventId: string) => {
     setEvents(prev => prev.filter(event => event.id !== eventId));
-    addNotification({
-      type: 'success',
-      message: 'Événement supprimé avec succès'
-    });
-    handleModalClose();
+    setShowEventModal(false);
   };
 
-  const upcomingTasks = userTasks
-    .filter(task => {
-      const taskDate = new Date(task.deadline);
-      const today = new Date();
-      const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-      return taskDate >= today && taskDate <= nextWeek && task.status !== 'completed';
-    })
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
-
-  // Événements de la date sélectionnée
-  const eventsForSelectedDate = selectedDate ? getEventsForDate(selectedDate) : [];
-
-  // Ajout rapide (à implémenter selon vos besoins)
   const handleQuickAdd = (type: 'task' | 'project' | 'event') => {
-    if (type === 'task') setShowTaskModal(true);
-    if (type === 'project') setShowProjectModal(true);
-    if (type === 'event') setShowEventModal(true);
-    setShowDateModal(false);
+    switch (type) {
+      case 'task':
+        setShowTaskModal(true);
+        break;
+      case 'project':
+        setShowProjectModal(true);
+        break;
+      case 'event':
+        setShowEventModal(true);
+        break;
+    }
   };
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-full transition-colors duration-200">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Calendrier</h2>
-          <p className="text-gray-600 dark:text-gray-400">Visualisez vos échéances et planifiez votre travail</p>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('calendar.title')}</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigateMonth('today')}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors text-sm font-medium"
+          >
+            {t('calendar.today')}
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendar */}
+        {/* Calendar Grid */}
         <div className="lg:col-span-3">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            {/* Calendar Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => navigateMonth('prev')}
@@ -383,8 +588,14 @@ export function CalendarView() {
           </div>
         </div>
 
-        {/* Upcoming Tasks Sidebar */}
+        {/* Sidebar */}
         <div className="space-y-6">
+          {/* Légende - Sticky en haut */}
+          <div className="sticky top-4 z-10">
+            <CalendarLegend />
+          </div>
+
+          {/* Upcoming Tasks */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center space-x-2 mb-4">
               <Clock className="w-5 h-5 text-primary-600 dark:text-primary-400" />
@@ -407,7 +618,8 @@ export function CalendarView() {
                         <span className={`px-2 py-1 rounded-full ${
                           task.priority === 'urgent' ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300' :
                           task.priority === 'high' ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300' :
-                          'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
+                          task.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300' :
+                          'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
                         }`}>
                           {task.priority}
                         </span>
@@ -466,60 +678,259 @@ export function CalendarView() {
         </div>
       </div>
 
-      {/* Calendar Modal */}
+      {/* Modal de détails de date améliorée */}
       <Dialog open={showDateModal} onClose={handleModalClose} className="fixed inset-0 z-50 flex items-center justify-center">
-        {/* Overlay pour le fond */}
         <div className="fixed inset-0 bg-black/40 dark:bg-black/70" aria-hidden="true" />
-        <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-md mx-auto p-6 z-10">
-          <Dialog.Title className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-            {selectedDate && selectedDate.toLocaleDateString()}
+        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-2xl mx-auto p-6 z-10 max-h-[80vh] overflow-y-auto">
+          <Dialog.Title className="text-xl font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary-600" />
+            {selectedDate && selectedDate.toLocaleDateString('fr-FR', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
           </Dialog.Title>
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => handleQuickAdd('task')} className="flex items-center gap-1 px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition"><Plus className="w-4 h-4" /> {t('calendar.addTask')}</button>
-            <button onClick={() => handleQuickAdd('project')} className="flex items-center gap-1 px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition"><Plus className="w-4 h-4" /> {t('calendar.addProject')}</button>
-            <button onClick={() => handleQuickAdd('event')} className="flex items-center gap-1 px-2 py-1 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition"><Plus className="w-4 h-4" /> {t('calendar.addEvent')}</button>
+          
+          {/* Boutons d'ajout rapide */}
+          <div className="flex gap-2 mb-6">
+            <button 
+              onClick={() => handleQuickAdd('task')} 
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> 
+              Nouvelle tâche
+            </button>
+            <button 
+              onClick={() => handleQuickAdd('project')} 
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> 
+              Nouveau projet
+            </button>
+            <button 
+              onClick={() => handleQuickAdd('event')} 
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> 
+              Nouvel événement
+            </button>
           </div>
-          <div className="space-y-3 max-h-72 overflow-y-auto">
-            {eventsForSelectedDate.length === 0 && (
-              <div className="text-gray-500 dark:text-gray-400 text-sm text-center">{t('calendar.noEvent')}</div>
-            )}
-            {eventsForSelectedDate.map((event, idx) => (
-              <div key={event.id + idx} className="flex items-center gap-3 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition group">
-                {/* Barre/rond minimaliste */}
-                {(() => {
-                  if (event.type === 'project') return <span className={`w-6 h-2 rounded-full ${PROJECT_COLOR}`}></span>;
-                  if (event.type === 'meeting' || event.type === 'deadline') return <span className={`w-6 h-2 rounded-full ${EVENT_COLOR}`}></span>;
-                  if (event.type === 'task' && Number(new Date(event.end)) - Number(new Date(event.start)) >= 24*60*60*1000) return <span className={`w-6 h-2 rounded-full ${TASK_COLOR}`}></span>;
-                  let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium';
-                  if (event.type === 'task' && 'priority' in event && typeof (event as any).priority === 'string') {
-                    priority = (event as any).priority as 'low' | 'medium' | 'high' | 'urgent';
-                  }
-                  return <span className={`w-3 h-3 rounded-full ${TASK_DOT_COLORS[priority]} border`}></span>;
-                })()}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate text-gray-900 dark:text-white">{event.title}</div>
-                  {event.type !== 'task' && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {t('calendar.period', {start: new Date(event.start).toLocaleDateString(), end: new Date(event.end).toLocaleDateString()})}
+
+          {/* Contenu de la modal */}
+          <div className="space-y-6">
+            {/* Tâches */}
+            {tasksForSelectedDate.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  Tâches ({tasksForSelectedDate.length})
+                </h3>
+                <div className="space-y-3">
+                  {tasksForSelectedDate.map((task) => (
+                    <div key={task.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{task.title}</h4>
+                          {task.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{task.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className={`px-2 py-1 rounded-full ${
+                              task.priority === 'urgent' ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300' :
+                              task.priority === 'high' ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300' :
+                              task.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300' :
+                              'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+                            }`}>
+                              {task.priority}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full ${
+                              task.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' :
+                              task.status === 'in_progress' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300' :
+                              task.status === 'review' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300' :
+                              'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                            }`}>
+                              {task.status}
+                            </span>
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {new Date(task.deadline).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                        <a 
+                          href={`/tasks/${task.id}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 text-xs"
+                        >
+                          <ExternalLink className="w-4 h-4" /> 
+                          Voir détails
+                        </a>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-                <a href={`/${event.type}s/${event.relatedId || event.id}`} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 text-xs"><ExternalLink className="w-4 h-4" /> {t('calendar.seeDetails')}</a>
               </div>
-            ))}
+            )}
+
+            {/* Projets */}
+            {projectsForSelectedDate.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  Projets ({projectsForSelectedDate.length})
+                </h3>
+                <div className="space-y-3">
+                  {projectsForSelectedDate.map((project) => {
+                    const startDate = project.startDate ? 
+                      (typeof project.startDate === 'string' ? new Date(project.startDate) : project.startDate) : null;
+                    const endDate = project.endDate ? 
+                      (typeof project.endDate === 'string' ? new Date(project.endDate) : project.endDate) : null;
+                    const duration = startDate && endDate && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) ? 
+                      Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                    
+                    return (
+                      <div key={project.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-gray-900 dark:text-white">{project.name}</h4>
+                              {project.color && (
+                                <div 
+                                  className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
+                                  style={{ backgroundColor: project.color }}
+                                  title="Couleur du projet"
+                                />
+                              )}
+                            </div>
+                            {project.description && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{project.description}</p>
+                            )}
+                            <div className="flex items-center gap-3 text-xs mb-2">
+                              <span className={`px-2 py-1 rounded-full ${
+                                project.status === 'active' ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' :
+                                project.status === 'planning' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300' :
+                                project.status === 'completed' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
+                                project.status === 'on_hold' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300' :
+                                project.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300' :
+                                'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                              }`}>
+                                {project.status || 'Non défini'}
+                              </span>
+                              {project.progress !== undefined && (
+                                <span className="px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
+                                  {project.progress}% terminé
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                              {startDate && endDate && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) ? (
+                                <>
+                                  <span>
+                                    <strong>Début:</strong> {startDate.toLocaleDateString('fr-FR')}
+                                  </span>
+                                  <span>
+                                    <strong>Fin:</strong> {endDate.toLocaleDateString('fr-FR')}
+                                  </span>
+                                  <span>
+                                    <strong>Durée:</strong> {duration} jour{duration > 1 ? 's' : ''}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>Dates non définies</span>
+                              )}
+                            </div>
+                            {project.riskLevel && (
+                              <div className="mt-2">
+                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                  project.riskLevel === 'low' ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' :
+                                  project.riskLevel === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300' :
+                                  project.riskLevel === 'high' ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300' :
+                                  'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+                                }`}>
+                                  Risque: {project.riskLevel}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <a 
+                            href={`/projects/${project.id}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 text-xs"
+                          >
+                            <ExternalLink className="w-4 h-4" /> 
+                            Voir détails
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Événements */}
+            {eventsForSelectedDate.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-purple-600" />
+                  Événements ({eventsForSelectedDate.length})
+                </h3>
+                <div className="space-y-3">
+                  {eventsForSelectedDate.map((event, idx) => (
+                    <div key={event.id + idx} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{event.title}</h4>
+                          {event.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{event.description}</p>
+                          )}
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(event.start).toLocaleString('fr-FR')} - {new Date(event.end).toLocaleString('fr-FR')}
+                          </div>
+                        </div>
+                        <a 
+                          href={`/events/${event.id}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 text-xs"
+                        >
+                          <ExternalLink className="w-4 h-4" /> 
+                          Voir détails
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Aucun événement */}
+            {tasksForSelectedDate.length === 0 && projectsForSelectedDate.length === 0 && eventsForSelectedDate.length === 0 && (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500 dark:text-gray-400">Aucun événement pour cette date</p>
+              </div>
+            )}
           </div>
-          <button onClick={handleModalClose} className="mt-4 w-full py-2 rounded bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 transition">{t('calendar.close')}</button>
+
+          <button 
+            onClick={handleModalClose} 
+            className="mt-6 w-full py-3 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors font-medium"
+          >
+            Fermer
+          </button>
         </div>
       </Dialog>
-      {/* Modale d’ajout rapide tâche */}
+
+      {/* Modales d'ajout */}
       {showTaskModal && (
         <TaskModal task={null} onClose={() => setShowTaskModal(false)} />
       )}
-      {/* Modale d’ajout rapide projet */}
       {showProjectModal && (
         <ProjectModal project={null} isOpen={showProjectModal} onClose={() => setShowProjectModal(false)} />
       )}
-      {/* Modale d’ajout rapide événement */}
       {showEventModal && (
         <CalendarModal isOpen={showEventModal} onClose={() => setShowEventModal(false)} selectedDate={selectedDate} />
       )}

@@ -82,8 +82,12 @@ class IsTaskOwnerOrManagerOrAdmin(BasePermission):
         print(f"DEBUG: Task creator: {obj.creator}, User: {util}")
         print(f"DEBUG: User in assignees: {util in obj.assignees.all()}")
         
-        # Admin peut tout faire
+        # Admin peut accéder à tout sauf aux tâches personnelles d'autres utilisateurs
         if util.role == 'ADMIN':
+            # Si c'est une tâche personnelle, vérifier que l'admin en est le créateur
+            if obj.type == 'personnel' and obj.creator != util:
+                print(f"DEBUG: Admin access denied for personal task of another user")
+                return False
             print(f"DEBUG: Admin access granted for {getattr(user, 'username', 'inconnu')}")
             return True
         
@@ -157,9 +161,12 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         user = self.request.user
         utilisateur = getattr(user, 'utilisateur', None)
-        # Correction : autoriser l'action 'me' à tout utilisateur connecté
-        if hasattr(self, 'action') and self.action == 'me':
+        
+        # Autoriser les actions 'me' et 'upload_profile_photo' à tout utilisateur connecté
+        if hasattr(self, 'action') and self.action in ['me', 'upload_profile_photo']:
             return [IsAuthenticated()]
+        
+        # Pour les autres actions, vérifier les permissions selon le rôle
         if not utilisateur:
             return [IsAdminOrDirector()]
         if utilisateur.role == 'ADMIN':
@@ -308,17 +315,13 @@ class TacheViewSet(viewsets.ModelViewSet):
         if not utilisateur:
             return Tache.objects.none()
         
-        # Admin voit toutes les tâches
-        if utilisateur.role == 'ADMIN':
-            return Tache.objects.all()
-        
         # Construire la requête de base
         queryset = Tache.objects.none()
         
-        # Tâches créées par l'utilisateur
+        # Tâches créées par l'utilisateur (tous types)
         queryset |= Tache.objects.filter(creator=utilisateur)
         
-        # Tâches assignées à l'utilisateur
+        # Tâches assignées à l'utilisateur (tous types)
         queryset |= Tache.objects.filter(assignees=utilisateur)
         
         # Tâches de service : si l'utilisateur est membre du service

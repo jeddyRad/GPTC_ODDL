@@ -58,22 +58,26 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
   }, [task?.id]);
 
   const handleUpload = async (files: File[]) => {
-    if (!task?.id) return;
+    if (!task?.id && !user?.id) return;
+    
     const newAttachments = [...attachments];
     for (const file of files) {
-      const fileId = `temp-${Date.now()}`;
-      const fileUrl = URL.createObjectURL(file);
-      const newAttachment: Attachment = {
-        id: fileId,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: fileUrl,
-        relatedTo: 'task',
-        relatedId: task.id,
-      };
-      newAttachments.push(newAttachment);
-      // ... upload réel au backend ...
+      try {
+        const relatedTo = taskType === 'personnel' ? 'user' : (taskType === 'projet' ? 'project' : 'task');
+        const relatedId = task?.id || user?.id || '';
+        
+        if (relatedId) {
+          const attachment = await uploadAttachment({ 
+            file, 
+            relatedTo, 
+            relatedId 
+          });
+          newAttachments.push(attachment);
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'upload:', error);
+        setError('Erreur lors de l\'upload du fichier');
+      }
     }
     setAttachments(newAttachments);
   };
@@ -567,6 +571,79 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
               )}
             </form>
 
+            {/* Onglets pour les tâches existantes */}
+            {task && (
+              <div className="border-t border-gray-200 dark:border-gray-700">
+                <div className="flex space-x-1 px-6 pt-4">
+                  <button
+                    onClick={() => setActiveTab('details')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activeTab === 'details'
+                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {t('task.details')}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('comments')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activeTab === 'comments'
+                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {t('task.comments')} ({task.comments?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('attachments')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activeTab === 'attachments'
+                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {t('task.attachments')} ({attachments.length})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Contenu des onglets */}
+            {activeTab === 'details' && task && (
+              <div className="p-6">
+                {/* Afficher les détails de la tâche en lecture seule */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t('task.title')}
+                    </label>
+                    <p className="text-gray-900 dark:text-white">{task.title}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t('task.description')}
+                    </label>
+                    <p className="text-gray-900 dark:text-white">{task.description || t('task.noDescription')}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('task.status')}
+                      </label>
+                      <p className="text-gray-900 dark:text-white capitalize">{task.status}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('task.priority')}
+                      </label>
+                      <p className="text-gray-900 dark:text-white capitalize">{task.priority}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           {activeTab === 'comments' && task && (
             <div className="p-6 space-y-4">
               <div className="space-y-4">
@@ -676,14 +753,17 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
             </div>
           )}
 
-          {activeTab === 'attachments' && task && (
+          {activeTab === 'attachments' && (
             <div className="p-6">
               <AttachmentDropzone
                 files={attachments}
-                onUpload={(files: File[]) => setPendingFiles(files)}
-                onDelete={id => setAttachments(attachments.filter(a => a.id !== id))}
-                relatedTo={taskType === 'personnel' ? 'user' : (taskType as 'task' | 'project')}
-                relatedId={''} // sera renseigné après création de la tâche
+                onUpload={handleUpload}
+                onDelete={handleDeleteAttachment}
+                onDownload={handleDownload}
+                relatedTo={taskType === 'personnel' ? 'user' : (taskType === 'projet' ? 'project' : 'task')}
+                relatedId={task?.id || user?.id || ''}
+                disabled={!task?.id && !user?.id}
+                helpText={!task?.id && !user?.id ? 'Créez d\'abord la tâche pour ajouter des pièces jointes' : 'Glissez-déposez vos fichiers ici'}
               />
             </div>
           )}

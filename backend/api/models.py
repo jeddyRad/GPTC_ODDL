@@ -13,9 +13,9 @@ from django.contrib.postgres.indexes import GinIndex
 def upload_attachment_path(instance, filename):
     """
     Generates the storage path for attachments
-    Format: attachments/YYYY/MM/task_uuid/filename
+    Format: attachments/YYYY/MM/related_type/related_id/filename
     """
-    return f'attachments/{timezone.now().year}/{timezone.now().month:02d}/{instance.task.id}/{filename}'
+    return f'attachments/{timezone.now().year}/{timezone.now().month:02d}/{instance.related_to}/{instance.related_id}/{filename}'
 
 class UUIDModel(models.Model):
     """

@@ -453,7 +453,17 @@ export async function uploadAttachment({ file, relatedTo, relatedId, name }: { f
   formData.append('related_to', relatedTo);
   formData.append('related_id', relatedId);
   if (name) formData.append('name', name);
-  const response = await apiService.api.post('/attachments/upload/', formData, {
+  
+  // Debug: afficher les données envoyées
+  console.log('Upload attachment debug:', {
+    fileName: file.name,
+    fileSize: file.size,
+    relatedTo,
+    relatedId,
+    name
+  });
+  
+  const response = await apiService.api.post('/api/attachments/upload/', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
