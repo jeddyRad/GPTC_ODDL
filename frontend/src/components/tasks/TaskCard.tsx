@@ -62,21 +62,27 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         console.log('Clicked task:', task.id);
         onClick();
       }}
-      className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all duration-200 ${
-        isDragging ? 'opacity-50' : ''
-      } ${isOverdue ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/10' : ''}`}
+      className={`relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col shadow-md hover:shadow-xl transition-shadow duration-200 cursor-pointer group ${isOverdue ? 'border-red-400 dark:border-red-600' : ''}`}
     >
-      <div className="flex items-start justify-between mb-2">
-        <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight flex-1 pr-2">
-          {task.title}
-        </h4>
-        <div className="flex items-center space-x-1">
-          {task.priority === 'urgent' && (
-            <AlertTriangle className="w-3 h-3 text-red-500" />
-          )}
-          <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)} flex-shrink-0`} title={getPriorityLabel(task.priority)} />
-        </div>
+      {/* Badge type de tâche */}
+      <div className="flex items-center justify-between mb-2">
+        <span
+          className={`px-2 py-1 rounded text-xs font-semibold mr-2
+            ${task.type === 'projet' ? 'bg-blue-100 text-blue-800' : task.type === 'service' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+        >
+          {/* Texte du badge selon le type */}
+          {task.type === 'projet' ? t('task.type.project') : task.type === 'service' ? t('task.type.service') : t('task.type.personal')}
+        </span>
+        {/* Icône pièce jointe à côté du titre si pièces jointes */}
+        {((task.attachments ?? []).length) > 0 && (
+          <span title={t('task.attachments')} className="flex items-center text-gray-400 dark:text-gray-500 ml-2">
+            <Paperclip className="w-4 h-4" />
+            <span className="text-xs ml-1">{(task.attachments ?? []).length}</span>
+          </span>
+        )}
       </div>
+      {/* Titre de la tâche */}
+      <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 truncate">{task.title}</h3>
 
       {task.description && (
         <p className="text-gray-600 dark:text-gray-400 text-xs mb-3 line-clamp-2">
@@ -168,10 +174,10 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
               </div>
             )}
             
-            {task.attachments.length > 0 && (
+            {((task.attachments ?? []).length) > 0 && (
               <div className="flex items-center space-x-1 text-gray-400 dark:text-gray-500">
                 <Paperclip className="w-3 h-3" />
-                <span className="text-xs">{task.attachments.length}</span>
+                <span className="text-xs">{(task.attachments ?? []).length}</span>
               </div>
             )}
           </div>

@@ -43,7 +43,7 @@ export function LoginForm() {
           />
         </div>
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white">GPTC ODDL</h2>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">Observatoire du Développement Local</p>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">Observatoire de la Décentralisation et du Développement Local</p>
         <p className="text-sm text-gray-500 dark:text-gray-500">Plateforme de gestion collaborative</p>
       </div>
 

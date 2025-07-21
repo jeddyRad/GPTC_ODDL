@@ -131,6 +131,13 @@
     "darkMode": "Passer au thème sombre"
   },
   "project": {
+    "selectServices": "Sélectionnez les services",
+    "selectMembers": "Sélectionnez les membres",
+    "selectManager": "Sélectionnez le chef",
+    "selectTasks": "Sélectionnez les tâches",
+    "selectAttachments": "Sélectionnez les pièces jointes",
+    "selectComments": "Sélectionnez les commentaires",
+    "selectServiceOrMember":"Sélectionnez les services ou membres",
     "edit": "Modifier le projet",
     "new": "Nouveau projet",
     "generalInfo": "Informations générales",
@@ -148,7 +155,13 @@
     "startDate": "Date de début",
     "endDate": "Date de fin",
     "projectColor": "Couleur du projet",
-    "services": "Services associés"
+    "services": "Services associés",
+    "members": "Membres du projet",
+    "chef": "Chef de projet",
+    "tasks": "Tâches du projet",
+    "attachments": "Pièces jointes",
+    "comments": "Commentaires",
+    "title": "Titre"
   },
   "user": {
     "admin": "Administrateur",
@@ -158,6 +171,15 @@
     "logout": "Déconnexion"
   },
   "task": {
+    "type":{
+      "personal": "Personnelle",
+      "project": "Projet",
+      "service": "Service"
+    },
+    "details":"Détails",
+    "description":"Description",
+    "attachments":"Pièces jointes",
+    "comments":"Commentaires",
     "title": "Titre",
     "status": "Statut",
     "service": "Service",
@@ -483,5 +505,8 @@
     "totalSecurityMessages": "Messages de sécurité totaux",
     "totalSecurityComments": "Commentaires de sécurité totaux",
     "totalSecurityAttachments": "Pièces jointes de sécurité totaux"
+  },
+  "attachment":{
+    "uploading":"charger"
   }
 }

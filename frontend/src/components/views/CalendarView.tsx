@@ -63,6 +63,7 @@ export function CalendarView() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   // Filter tasks that are assigned to the current user or created by them
   const userTasks = tasks.filter(task => 
@@ -73,11 +74,13 @@ export function CalendarView() {
   );
 
   // Filter projects that the user is involved in
-  const userProjects = projects.filter(project => 
-    project.creatorId === user?.id ||
-    (project.memberIds && project.memberIds.includes(user?.id || '')) ||
-    project.chefId === user?.id
-  );
+  const userProjects = user?.role === 'ADMIN'
+    ? projects
+    : projects.filter(project => 
+        project.creatorId === user?.id ||
+        (project.memberIds && project.memberIds.includes(user?.id || '')) ||
+        project.chefId === user?.id
+      );
 
   // Debug: afficher les projets disponibles une seule fois
   useEffect(() => {
@@ -275,10 +278,37 @@ export function CalendarView() {
     }));
 
     // Fusionner les projets du contexte et du payload d'événements (éviter les doublons)
-    const allProjects = [
-      ...userProjects,
-      ...eventProjects.filter(ep => !userProjects.some(up => up.id === ep.id)),
-    ];
+    const projectMap = new Map<string, Project>();
+    userProjects.forEach(p => projectMap.set(p.id, p));
+    eventProjects.forEach(ep => {
+      const id = (ep as any).relatedId || ep.id;
+      if (!projectMap.has(id)) {
+        projectMap.set(id, {
+          ...ep,
+          id,
+          description: ep.description ?? '',
+          color: ep.color ?? '#3B82F6',
+          progress: ep.progress ?? 0,
+          status: 'active',
+          startDate: ep.startDate instanceof Date ? ep.startDate.toISOString().slice(0, 10) : (typeof ep.startDate === 'string' ? ep.startDate : ''),
+          endDate: ep.endDate instanceof Date ? ep.endDate.toISOString().slice(0, 10) : (typeof ep.endDate === 'string' ? ep.endDate : ''),
+          serviceId: '',
+          serviceIds: [],
+          memberIds: [],
+          memberDetails: [],
+          chefId: '',
+          chefDetails: undefined,
+          taskCount: 0,
+          completedTaskCount: 0,
+          attachments: [],
+          createdAt: '',
+          updatedAt: '',
+          riskLevel: 'medium',
+          creatorId: '',
+        } as Project);
+      }
+    });
+    const allProjects: Project[] = Array.from(projectMap.values());
 
     // Créer un mapping des projets par jour pour l'affichage multi-jours
     const projectMapping: { [key: string]: { project: any; startDay: number; endDay: number; row: number } } = {};
@@ -420,6 +450,11 @@ export function CalendarView() {
                     zIndex: 10 - row
                   }}
                   title={`Projet: ${project.name}${isStart ? ' (Début)' : isEnd ? ' (Fin)' : ''}`}
+                  onClick={e => {
+                    e.stopPropagation();
+                    setSelectedProject(project);
+                    setShowProjectModal(true);
+                  }}
                 >
                   {(isStart || isSingleDay) && (
                     <span className="truncate text-white text-xs font-semibold flex items-center gap-1">
@@ -734,7 +769,6 @@ export function CalendarView() {
               day: 'numeric' 
             })}
           </Dialog.Title>
-          
           {/* Boutons d'ajout rapide */}
           <div className="flex gap-2 mb-6">
             <button 
@@ -759,7 +793,6 @@ export function CalendarView() {
               Nouvel événement
             </button>
           </div>
-
           {/* Contenu de la modal */}
           <div className="space-y-6">
             {/* Un seul fragment pour tous les blocs conditionnels */}
@@ -932,7 +965,7 @@ export function CalendarView() {
         <TaskModal task={null} onClose={() => setShowTaskModal(false)} />
       )}
       {showProjectModal && (
-        <ProjectModal project={null} isOpen={showProjectModal} onClose={() => setShowProjectModal(false)} />
+        <ProjectModal project={selectedProject || null} isOpen={showProjectModal} onClose={() => setShowProjectModal(false)} />
       )}
       {showEventModal && (
         <CalendarModal isOpen={showEventModal} onClose={() => setShowEventModal(false)} selectedDate={selectedDate} />

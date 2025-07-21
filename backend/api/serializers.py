@@ -230,6 +230,7 @@ class ProjetSerializer(serializers.ModelSerializer):
     taskCount = serializers.IntegerField(source='nombre_taches', read_only=True)
     completedTaskCount = serializers.IntegerField(source='taches_terminees', read_only=True)
     serviceId = serializers.UUIDField(source='service.id', required=False, allow_null=True)
+    serviceIds = serializers.SerializerMethodField()
     serviceIds = serializers.ListField(child=serializers.UUIDField(), source='services', required=False, write_only=True)
     attachments = PieceJointeSerializer(source='pieces_jointes', many=True, read_only=True)
     createdAt = serializers.DateTimeField(source='date_creation', read_only=True)
@@ -258,8 +259,11 @@ class ProjetSerializer(serializers.ModelSerializer):
                     validated_data['chef'] = chef
                 except Utilisateur.DoesNotExist:
                     validated_data['chef'] = None
-            if service_id:
-                validated_data['service'] = service_id
+            # Correction : convertir l'UUID en instance Service
+            if services_ids:
+                validated_data['service'] = Service.objects.get(id=services_ids[0])
+            elif service_id:
+                validated_data['service'] = Service.objects.get(id=service_id)
             project = Projet.objects.create(**validated_data)
             if membres_ids:
                 project.membres.set(membres_ids)
@@ -288,10 +292,23 @@ class ProjetSerializer(serializers.ModelSerializer):
             instance.membres.set(membres_ids)
         if services_ids is not None:
             instance.services.set(services_ids)
-        if service_id is not None:
-            instance.service = service_id
+            if services_ids:
+                instance.service = Service.objects.get(id=services_ids[0])
+        elif service_id is not None:
+            instance.service = Service.objects.get(id=service_id)
         instance.save()
         return instance
+
+    def get_serviceIds(self, obj):
+        # Toujours retourner un tableau d'ID de service
+        ids = []
+        # Services secondaires (ManyToMany)
+        if hasattr(obj, 'services') and obj.services.exists():
+            ids = [str(s.id) for s in obj.services.all()]
+        # Service principal (ForeignKey)
+        elif hasattr(obj, 'service') and obj.service:
+            ids = [str(obj.service.id)]
+        return ids
 
 class CommentaireSerializer(serializers.ModelSerializer):
     """API serializer for the Commentaire (Comment) model."""

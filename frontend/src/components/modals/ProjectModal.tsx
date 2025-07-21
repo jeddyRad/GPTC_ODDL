@@ -45,7 +45,11 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
       riskLevel: (project?.riskLevel as Project['riskLevel']) || 'medium',
       startDate: project?.startDate || '',
       endDate: project?.endDate || '',
-      serviceIds: project?.serviceIds ? project.serviceIds.filter(Boolean) : [(user?.service ?? '')],
+      serviceIds: (Array.isArray(project?.serviceIds) && project?.serviceIds.length > 0)
+        ? project?.serviceIds.filter(Boolean)
+        : (project?.serviceId && typeof project?.serviceId === 'string' && project?.serviceId !== 'null')
+          ? [project?.serviceId]
+          : [],
       memberIds: project?.memberIds ? project.memberIds.filter(Boolean) : [(user?.id ?? '')],
       color: project?.color || '#3B82F6',
       projectId: project?.id || '',
@@ -70,7 +74,12 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
         riskLevel: (project.riskLevel as Project['riskLevel']) || 'medium',
         startDate: project.startDate || '',
         endDate: project.endDate || '',
-        serviceIds: (project.serviceIds || []).filter(Boolean),
+        // Correction : toujours un tableau d'id de service
+        serviceIds: (Array.isArray(project?.serviceIds) && project?.serviceIds.length > 0)
+          ? project?.serviceIds.filter(Boolean)
+          : (project?.serviceId && typeof project?.serviceId === 'string' && project?.serviceId !== 'null')
+            ? [project?.serviceId]
+            : [],
         memberIds: project.memberDetails ? project.memberDetails.map(m => m.id).filter(Boolean) : [],
         color: project.color || '#3B82F6',
         projectId: project.id,
@@ -212,12 +221,17 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
     const files = Array.from(event.target.files || []);
     setFormData(prev => ({
       ...prev,
-      attachments: [...prev.attachments, ...files.map(file => ({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: URL.createObjectURL(file), // For preview
-      }))],
+      attachments: [
+        ...prev.attachments,
+        ...files.map(file => ({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          url: URL.createObjectURL(file),
+          relatedTo: 'project' as const,
+          relatedId: project?.id || '',
+        }))
+      ],
     }));
     event.target.value = ''; // Clear the input for re-selection
   };
@@ -242,7 +256,7 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
       try {
         const attachment = await uploadAttachment({ 
           file, 
-          relatedTo: 'project', 
+          relatedTo: 'project' as const, 
           relatedId: project.id 
         });
         newAttachments.push(attachment as Attachment);

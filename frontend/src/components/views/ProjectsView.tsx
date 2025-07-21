@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Calendar, Users, BarChart3, Clock, AlertCircle, AlertTriangle, Edit, Trash2, CheckSquare } from 'lucide-react';
+import { Plus, Calendar, Users, BarChart3, Clock, AlertCircle, AlertTriangle, Edit, Trash2, CheckSquare, Paperclip } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Project } from '@/types';
@@ -70,6 +70,7 @@ function ProjectCard({ project, onDetails, onEdit, onDelete }: {
   onDelete: () => void;
 }) {
   const progress = project.progress || 0;
+  const { t } = useTranslation();
   return (
     <div
       className="relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 flex flex-col shadow-md hover:shadow-xl transition-shadow duration-200 cursor-pointer group"
@@ -97,7 +98,16 @@ function ProjectCard({ project, onDetails, onEdit, onDelete }: {
         <span className="inline-block w-4 h-4 rounded-full mr-2 align-middle" style={{ backgroundColor: project.color }}></span>
         <span className="text-xs text-gray-500">{project.riskLevel}</span>
       </div>
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate">{project.name}</h2>
+      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate flex items-center">
+        {project.name}
+        {/* Icône pièce jointe si le projet a des pièces jointes */}
+        {((project.attachments ?? []).length) > 0 && (
+          <span title={t('project.attachments')} className="flex items-center text-gray-400 dark:text-gray-500 ml-2">
+            <Paperclip className="w-4 h-4" />
+            <span className="text-xs ml-1">{(project.attachments ?? []).length}</span>
+          </span>
+        )}
+      </h2>
       <p className="text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{project.description}</p>
       <div className="flex flex-wrap gap-2 mb-2">
         {project.chefDetails && (

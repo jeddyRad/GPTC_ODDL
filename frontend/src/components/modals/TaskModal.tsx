@@ -613,6 +613,47 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
             {activeTab === 'details' && task && (
               <div className="p-6">
                 {/* Afficher les détails de la tâche en lecture seule */}
+                {/* Badge type de tâche et icône pièce jointe à côté du titre */}
+                <div className="flex items-center mb-4">
+          <span className={`px-2 py-1 rounded text-xs font-semibold mr-2
+            ${task?.type === 'projet' ? 'bg-blue-100 text-blue-800' : task?.type === 'service' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+          >
+            {task?.type === 'projet' ? t('task.type.project') : task?.type === 'service' ? t('task.type.service') : t('task.type.personal')}
+          </span>
+          <h2 className="text-2xl font-bold text-primary-700 dark:text-primary-300 flex items-center">
+            {task?.title}
+            {/* Icône pièce jointe si la tâche a des pièces jointes */}
+            {((task?.attachments ?? []).length) > 0 && (
+              <span title={t('task.attachments')} className="flex items-center text-gray-400 dark:text-gray-500 ml-2">
+                <Paperclip className="w-5 h-5" />
+                <span className="text-xs ml-1">{(task.attachments ?? []).length}</span>
+              </span>
+            )}
+          </h2>
+        </div>
+        {/* Liste détaillée des pièces jointes */}
+        {((task?.attachments ?? []).length) > 0 && (
+          <div className="mb-4">
+            <h3 className="font-semibold text-sm mb-2 flex items-center">
+              <Paperclip className="w-4 h-4 mr-1" /> {t('task.attachmentsList')}
+            </h3>
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+              {(task.attachments ?? []).map((att: any) => (
+                <li key={att.id || att.name} className="py-2 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{att.name}</span>
+                    <span className="text-xs text-gray-500">{att.size ? (att.size / 1024).toFixed(1) + ' Ko' : ''}</span>
+                    {att.uploader && <span className="text-xs text-gray-400">{t('task.uploadedBy')}: {att.uploader.fullName || att.uploader.username}</span>}
+                    {att.uploadedAt && <span className="text-xs text-gray-400">{t('task.uploadedAt')}: {new Date(att.uploadedAt).toLocaleString()}</span>}
+                  </div>
+                  <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline text-xs ml-2">
+                    {t('task.download')}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
