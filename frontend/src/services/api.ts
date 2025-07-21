@@ -293,6 +293,14 @@ class ApiService {
     });
   }
 
+  async deleteNotification(id: string): Promise<void> {
+    this.validateUUID(id, 'notification');
+    return this.request<void>({
+      method: 'DELETE',
+      url: `/api/notifications/${id}/`,
+    });
+  }
+
   // === PRÊTS D'EMPLOYÉS ===
   async getEmployeeLoans(): Promise<EmployeeLoan[]> {
     return this.request<EmployeeLoan[]>({

@@ -312,9 +312,11 @@ class ProjetSerializer(serializers.ModelSerializer):
 
 class CommentaireSerializer(serializers.ModelSerializer):
     """API serializer for the Commentaire (Comment) model."""
-    authorId = serializers.UUIDField(source='auteur.id')
+    tache = serializers.UUIDField(write_only=True, required=True)
+    auteur = serializers.UUIDField(write_only=True, required=True)
+    authorId = serializers.UUIDField(source='auteur.id', read_only=True)
     authorDetails = UtilisateurSimpleSerializer(source='auteur', read_only=True)
-    taskId = serializers.UUIDField(source='tache.id')
+    taskId = serializers.UUIDField(source='tache.id', read_only=True)
     content = serializers.CharField(source='contenu')
     isEdited = serializers.BooleanField(source='est_modifie', read_only=True)
     
@@ -324,9 +326,16 @@ class CommentaireSerializer(serializers.ModelSerializer):
     class Meta:
         model = Commentaire
         fields = [
-            'id', 'content', 'mentions', 'isEdited', 'authorId', 
-            'authorDetails', 'taskId', 'createdAt', 'updatedAt'
+            'id', 'authorId', 'authorDetails', 'taskId', 'content', 'mentions', 'isEdited',
+            'createdAt', 'updatedAt', 'tache', 'auteur'
         ]
+
+    def create(self, validated_data):
+        tache_id = validated_data.pop('tache')
+        auteur_id = validated_data.pop('auteur')
+        tache = Tache.objects.get(id=tache_id)
+        auteur = Utilisateur.objects.get(id=auteur_id)
+        return Commentaire.objects.create(tache=tache, auteur=auteur, **validated_data)
 
 class TacheSerializer(serializers.ModelSerializer):
     """API serializer for the Tache (Task) model."""
@@ -725,6 +734,7 @@ class ModeUrgenceSerializer(serializers.ModelSerializer):
         return str(value)
 
 class NotificationSerializer(serializers.ModelSerializer):
+    relatedId = serializers.UUIDField(source='related_id', required=False, allow_null=True)
     class Meta:
         model = Notification
         fields = '__all__'

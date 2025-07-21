@@ -93,10 +93,34 @@ function ProjectCard({ project, onDetails, onEdit, onDelete }: {
           <Trash2 className="w-4 h-4 text-red-500" />
         </button>
       </div>
-      <div className="flex items-center mb-2">
-        <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mr-2 ${project.status === 'active' ? 'bg-green-100 text-green-800' : project.status === 'planning' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{project.status}</span>
-        <span className="inline-block w-4 h-4 rounded-full mr-2 align-middle" style={{ backgroundColor: project.color }}></span>
-        <span className="text-xs text-gray-500">{project.riskLevel}</span>
+      <div className="flex items-center mb-2 gap-2">
+        {/* Badge statut harmonisé */}
+        {project.status && (
+          <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mr-2 ${
+            project.status === 'active' ? 'bg-green-100 text-green-800' :
+            project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+            project.status === 'on_hold' ? 'bg-yellow-100 text-yellow-800' :
+            project.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+            'bg-gray-200 text-gray-600'
+          }`}>
+            {t(`project.${project.status}`)}
+          </span>
+        )}
+        {/* Badge risque */}
+        {project.riskLevel && (
+          <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mr-2 ${
+            project.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+            project.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+            project.riskLevel === 'low' ? 'bg-green-100 text-green-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {t(`project.${project.riskLevel}`)}
+          </span>
+        )}
+        {/* Badge couleur projet */}
+        {project.color && (
+          <span className="inline-block w-4 h-4 rounded-full border border-gray-300 mr-2 align-middle" style={{ backgroundColor: project.color }} title={t('project.projectColor')} />
+        )}
       </div>
       <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate flex items-center">
         {project.name}
@@ -108,23 +132,28 @@ function ProjectCard({ project, onDetails, onEdit, onDelete }: {
           </span>
         )}
       </h2>
-      <p className="text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{project.description}</p>
+      {project.description && (
+        <p className="text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{project.description}</p>
+      )}
       <div className="flex flex-wrap gap-2 mb-2">
+        {/* Chef de projet */}
         {project.chefDetails && (
-          <span className="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Chef: {project.chefDetails.fullName}</span>
+          <span className="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs" title={project.chefDetails.fullName}>{t('project.manager')}: {project.chefDetails.fullName}</span>
         )}
+        {/* Membres */}
         {project.memberDetails && project.memberDetails.length > 0 && project.memberDetails.slice(0, 3).map(m => (
-          <span key={m.id} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{m.fullName}</span>
+          <span key={m.id} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs" title={m.fullName}>{m.fullName}</span>
         ))}
         {project.memberDetails && project.memberDetails.length > 3 && (
           <span className="inline-block bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs">+{project.memberDetails.length - 3} autres</span>
         )}
       </div>
-      <div className="flex items-center text-xs text-gray-500 mb-2">
+      <div className="flex items-center text-xs text-gray-500 mb-2 gap-2">
         <Calendar className="w-4 h-4 mr-1" /> {project.startDate} → {project.endDate}
       </div>
-      <div className="flex items-center text-xs text-gray-500 mb-2">
-        <CheckSquare className="w-4 h-4 mr-1" /> {project.taskCount || 0} tâches
+      <div className="flex items-center text-xs text-gray-500 mb-2 gap-2">
+        <CheckSquare className="w-4 h-4 mr-1" /> {project.taskCount || 0} {t('project.tasks')}
+        <BarChart3 className="w-4 h-4 ml-2 mr-1" /> {t('project.progress')}: {progress}%
       </div>
       <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-auto">
         <div
@@ -132,7 +161,6 @@ function ProjectCard({ project, onDetails, onEdit, onDelete }: {
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      <span className="text-xs text-gray-500 mt-2">Progression : {progress}%</span>
     </div>
   );
 }

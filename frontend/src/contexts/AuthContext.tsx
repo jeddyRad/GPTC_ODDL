@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 firstName: userData.firstName || '',
                 lastName: userData.lastName || '',
                 role: userData.role || 'EMPLOYEE',
-                service: userData.service || userData.service || null,
+                service: userData.service || (userData as any).service_id || (userData as any).serviceId || null,
                 serviceDetails: userData.serviceDetails || undefined,
                 permissions: userData.permissions || [],
                 profilePhoto: userData.profilePhoto || undefined,

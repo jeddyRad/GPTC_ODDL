@@ -4,9 +4,11 @@ import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 export function NotificationsView() {
-  const { notifications, markNotificationAsRead, deleteNotification, markAllNotificationsAsRead } = useData();
+  const navigate = useNavigate();
+  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } = useData();
   const { user } = useAuth();
   const { addNotification } = useNotification();
   const [filter, setFilter] = useState('all');
@@ -77,6 +79,25 @@ export function NotificationsView() {
         type: 'error',
         message: 'Erreur lors de la suppression de la notification'
       });
+    }
+  };
+
+  const handleNotificationClick = (notification: any) => {
+    if (!notification.relatedId) return;
+    switch (notification.type) {
+      case 'task_assigned':
+      case 'deadline_approaching':
+      case 'comment_mention':
+        navigate(`/tasks/${notification.relatedId}`);
+        break;
+      case 'project_update':
+        navigate(`/dashboard/projects/${notification.relatedId}`);
+        break;
+      case 'security_alert':
+        navigate(`/dashboard/security`);
+        break;
+      default:
+        navigate('/dashboard/notifications');
     }
   };
 
@@ -182,7 +203,10 @@ export function NotificationsView() {
               {filteredNotifications.map((notification) => (
                 <div
                   key={notification.id}
-                  onClick={() => !notification.isRead && markNotificationAsRead(notification.id)}
+                  onClick={() => {
+                    if (!notification.isRead) markNotificationAsRead(notification.id);
+                    handleNotificationClick(notification);
+                  }}
                   className={`p-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors ${
                     !notification.isRead ? 'bg-blue-50 dark:bg-blue-900/10' : ''
                   }`}

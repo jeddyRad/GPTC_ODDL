@@ -56,6 +56,7 @@ interface DataContextType {
   deleteComment: (taskId: string, commentId: string) => Promise<void>;
   // Advanced notifications
   markAllNotificationsAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
   // Notification triggers
   triggerTaskAssignmentNotifications: (task: Task, assignedUserIds: string[]) => Promise<void>;
   triggerCommentMentionNotifications: (comment: Comment, task: Task, mentionedUserIds: string[]) => Promise<void>;
@@ -294,20 +295,13 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // === COMMENTAIRES ===
-  const addComment = async (taskId: string, comment: Omit<Comment, 'id' | 'createdAt' | 'replies'>) => {
+  const addComment = async (taskId: string, comment: Record<string, any>) => {
     if (!isValidUUID(taskId)) {
       throw new Error('ID de tâche invalide');
     }
     try {
-      // Correction : payload avec les bons champs camelCase
-      const payload = {
-        content: comment.content,
-        authorId: comment.authorId,
-        taskId: taskId,
-        mentions: comment.mentions || [],
-        isEdited: comment.isEdited || false
-      };
-      const newComment = await apiService.createComment(payload);
+      // On transmet le payload tel quel (pour compatibilité tache/auteur)
+      const newComment = await apiService.createComment(comment);
       setTasks(prev => prev.map(t =>
         t.id === taskId
           ? { ...t, comments: [...t.comments, transformComment(newComment)] }
@@ -385,6 +379,11 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       throw new Error('Impossible de créer la notification');
     }
+  };
+
+  const deleteNotification = async (id: string) => {
+    await apiService.deleteNotification(id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   // === PRÊTS D'EMPLOYÉS ===
@@ -640,6 +639,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
       deleteComment,
       // Advanced notifications
       markAllNotificationsAsRead,
+      deleteNotification,
       // Notification triggers
       triggerTaskAssignmentNotifications,
       triggerCommentMentionNotifications,

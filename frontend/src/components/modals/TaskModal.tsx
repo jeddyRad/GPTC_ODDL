@@ -237,15 +237,14 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
       setError(t('task.userNotFound', { users: invalidMentions.join(', ') }));
       return;
     }
-    if (newComment.trim() && task) {
-      // Extract mentions from comment
+    if (newComment.trim() && task && user && user.id && task.id) {
       addComment(task.id, {
         content: newComment,
-        authorId: ensureUUID(user?.id),
+        tache: String(task.id),
+        auteur: String(user.id),
         mentions,
-        parentId: undefined,
-        isEdited: false, // Ajout du champ manquant
-      });
+        est_modifie: false
+      } as any);
       setNewComment('');
     }
   };
@@ -337,6 +336,59 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
       serviceId: type === 'service' ? (user?.service || '') : '',
       projectId: type === 'projet' ? prev.projectId : '',
     }));
+  };
+
+  // Autocomplétion @mention pour le champ commentaire
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const filteredUsers = users.filter(u => u.username.toLowerCase().startsWith(mentionQuery.toLowerCase()) && mentionQuery.length > 0);
+
+  const handleCommentInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNewComment(val);
+    const match = val.slice(0, e.target.selectionStart ?? 0).match(/@(\w*)$/);
+    if (match) {
+      setShowMentionList(true);
+      setMentionQuery(match[1]);
+      setMentionIndex(0);
+    } else {
+      setShowMentionList(false);
+      setMentionQuery('');
+    }
+  };
+
+  const handleMentionSelect = (username: string) => {
+    if (!commentInputRef.current) return;
+    const input = commentInputRef.current;
+    const cursor = input.selectionStart ?? newComment.length;
+    const before = newComment.slice(0, cursor).replace(/@(\w*)$/, `@${username} `);
+    const after = newComment.slice(cursor);
+    setNewComment(before + after);
+    setShowMentionList(false);
+    setMentionQuery('');
+    setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(before.length, before.length);
+    }, 0);
+  };
+
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showMentionList && filteredUsers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        setMentionIndex(i => (i + 1) % filteredUsers.length);
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        setMentionIndex(i => (i - 1 + filteredUsers.length) % filteredUsers.length);
+        e.preventDefault();
+      } else if (e.key === 'Enter') {
+        handleMentionSelect(filteredUsers[mentionIndex].username);
+        e.preventDefault();
+      } else if (e.key === 'Escape') {
+        setShowMentionList(false);
+      }
+    }
   };
 
   return (
@@ -768,14 +820,30 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
 
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder={t('task.addCommentPlaceholder')}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      ref={commentInputRef}
+                      type="text"
+                      value={newComment}
+                      onChange={handleCommentInput}
+                      onKeyDown={handleCommentKeyDown}
+                      placeholder={t('task.addCommentPlaceholder')}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                    {showMentionList && filteredUsers.length > 0 && (
+                      <ul className="absolute z-50 left-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg max-h-48 overflow-auto">
+                        {filteredUsers.map((u, i) => (
+                          <li
+                            key={u.id}
+                            className={`px-3 py-2 cursor-pointer ${i === mentionIndex ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : ''}`}
+                            onMouseDown={e => { e.preventDefault(); handleMentionSelect(u.username); }}
+                          >
+                            @{u.username} <span className="text-xs text-gray-400">{u.fullName || u.username}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                   {error && (
                     <div className="text-red-500 text-xs mt-1">{error}</div>
                   )}

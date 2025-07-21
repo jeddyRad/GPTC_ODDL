@@ -87,6 +87,7 @@
   },
   "calendar": {
     "legend": {
+      "title":"Titre",
       "task": "Tâche",
       "inProgress": "En cours",
       "completed": "Terminée",
@@ -171,6 +172,7 @@
     "logout": "Déconnexion"
   },
   "task": {
+    "in_progress": "En cours",
     "type":{
       "personal": "Personnelle",
       "project": "Projet",

@@ -3,12 +3,14 @@ import { X, CheckCircle, Clock, MessageSquare, AlertTriangle, ExternalLink, Chec
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 interface NotificationPanelProps {
   onClose: () => void;
 }
 
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
+  const navigate = useNavigate();
   const { notifications, markNotificationAsRead } = useData();
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -43,13 +45,23 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   };
 
   const redirectToRelevantPage = (notification: any) => {
-    // Ici on pourrait implémenter la logique de redirection
-    // Pour l'instant, on log juste pour indiquer l'intention
-    console.log('Redirection vers:', notification.type, notification.relatedId);
-    // Exemple d'implémentation future:
-    // if (notification.type === 'task_assigned' && notification.relatedId) {
-    //   navigate(`/tasks/${notification.relatedId}`);
-    // }
+    if (!notification.relatedId) return;
+    switch (notification.type) {
+      case 'task_assigned':
+      case 'deadline_approaching':
+      case 'comment_mention':
+        navigate(`/tasks/${notification.relatedId}`);
+        break;
+      case 'project_update':
+        navigate(`/dashboard/projects/${notification.relatedId}`);
+        break;
+      case 'security_alert':
+        navigate(`/dashboard/security`);
+        break;
+      default:
+        // Par défaut, aller sur la page notifications
+        navigate('/dashboard/notifications');
+    }
   };
 
   return (

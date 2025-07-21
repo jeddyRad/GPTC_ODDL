@@ -400,6 +400,24 @@ class CommentaireViewSet(viewsets.ModelViewSet):
     serializer_class = CommentaireSerializer
     permission_classes = [IsAuthenticated] # Tout utilisateur connecté peut commenter
 
+    def perform_create(self, serializer):
+        commentaire = serializer.save()
+        mentions = commentaire.mentions or []
+        from .models import Utilisateur, Notification
+        for username in mentions:
+            try:
+                user = Utilisateur.objects.get(user__username=username)
+                Notification.objects.create(
+                    utilisateur=user,
+                    type='comment_mention',
+                    titre='Vous avez été mentionné',
+                    message=f'Vous avez été mentionné dans un commentaire sur la tâche "{commentaire.tache.title}".',
+                    priorite='medium',
+                    related_id=commentaire.tache.id
+                )
+            except Utilisateur.DoesNotExist:
+                continue
+
     def has_object_permission(self, request, view, obj):
         user = request.user
         if not hasattr(user, 'utilisateur'):

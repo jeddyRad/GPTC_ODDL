@@ -20,6 +20,9 @@ export function TaskBoard() {
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterTaskType, setFilterTaskType] = useState('all'); // 'all', 'personal', 'project', 'service'
 
+  // Log temporaire pour diagnostiquer le service du manager
+  console.log('user.service', user?.service);
+
   const activeUrgencyMode = urgencyModes.find(mode => mode.isActive);
 
   // Ne pas afficher le Kanban si la liste des services n'est pas chargée
@@ -80,8 +83,9 @@ export function TaskBoard() {
   const filteredTasks = userTasks.filter(task => {
     // Nouveau filtrage par type de tâche
     if (filterTaskType === 'personal' && (task.serviceId || task.projectId)) return false;
+    // Afficher les tâches ayant à la fois serviceId et projectId dans les deux filtres
     if (filterTaskType === 'project' && !task.projectId) return false;
-    if (filterTaskType === 'service' && (!task.serviceId || task.projectId)) return false;
+    if (filterTaskType === 'service' && !task.serviceId) return false;
     
     const matchesSearch = searchTerm === '' || 
                          task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

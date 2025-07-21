@@ -494,6 +494,7 @@ class Notification(UUIDModel):
     message = models.TextField()
     est_lue = models.BooleanField(default=False)
     priorite = models.CharField(max_length=10, choices=PRIORITE_CHOICES)
+    related_id = models.UUIDField(null=True, blank=True, help_text="UUID de l'entité liée (tâche, projet, etc.)")
 
 class PretEmploye(UUIDModel):
     STATUT_CHOICES = [
