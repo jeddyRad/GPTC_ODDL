@@ -1,6 +1,8 @@
 import React from 'react';
 import { AlertCircle, CheckCircle, Info, X, AlertTriangle } from 'lucide-react';
 import { Notification, NotificationType } from '@/contexts/NotificationContext';
+import { useNavigate } from 'react-router-dom';
+import { useData } from '@/contexts/DataContext';
 
 interface NotificationItemProps {
   notification: Notification;
@@ -36,14 +38,43 @@ const getStyles = (type: NotificationType) => {
 };
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onClose }) => {
-  const { type, title, message } = notification;
+  const { type, title, message, relatedId, id } = notification;
   const styles = getStyles(type);
   const icon = getIcon(type);
+  const navigate = useNavigate();
+  const { markNotificationAsRead } = useData();
+
+  // Fonction de redirection selon le type de notification
+  const handleClick = async () => {
+    if (id) {
+      await markNotificationAsRead(id);
+    }
+    if (!relatedId) return;
+    switch (type) {
+      case 'task_assigned':
+      case 'deadline_approaching':
+      case 'comment_mention':
+        navigate(`/dashboard/tasks/${relatedId}`);
+        break;
+      case 'project_update':
+        navigate(`/dashboard/projects/${relatedId}`);
+        break;
+      case 'security_alert':
+        navigate(`/dashboard/security`);
+        break;
+      default:
+        navigate('/dashboard/notifications');
+    }
+    onClose();
+  };
 
   return (
     <div
-      className={`flex items-start p-4 mb-3 rounded-lg shadow-md border animate-slide-in ${styles}`}
+      className={`flex items-start p-4 mb-3 rounded-lg shadow-md border animate-slide-in cursor-pointer ${styles}`}
       role="alert"
+      onClick={handleClick}
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter') handleClick(); }}
     >
       <div className="flex-shrink-0">{icon}</div>
       <div className="ml-3 flex-1">
@@ -51,7 +82,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         <div className="text-sm">{message}</div>
       </div>
       <button
-        onClick={onClose}
+        onClick={e => { e.stopPropagation(); onClose(); }}
         className="ml-4 inline-flex text-gray-400 hover:text-gray-500 focus:outline-none"
         aria-label="Fermer"
       >

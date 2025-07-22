@@ -119,7 +119,15 @@
     "noEvent": "Aucun événement ce jour",
     "period": "Du {{start}} au {{end}}",
     "seeDetails": "Voir détails",
-    "close": "Fermer"
+    "close": "Fermer",
+    "today": "Aujourd'hui",
+    "week": "Cette semaine",
+    "month": "Ce mois",
+    "year": "Cette année",
+    "all": "Tous",
+    "noTasks": "Aucune tâche",
+    "noProjects": "Aucun projet",
+    "newEvent": "Nouvel événement"
   },
   "header": {
     "title": "GPTC ODDL",
@@ -151,8 +159,18 @@
     "completed": "Terminé",
     "riskLevel": "Niveau de risque",
     "lowRisk": "Faible",
+    "medium": "Moyen",
     "mediumRisk": "Moyen",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "delete": "Supprimer",
+    "addComment": "Ajouter un commentaire",
+    "addCommentPlaceholder": "Ajouter un commentaire... (utilisez @nom pour mentionner)",
+    "commentEditError": "Erreur lors de la modification du commentaire.",
     "highRisk": "Élevé",
+    "highRiskDescription": "Le projet est en danger de ne pas être terminé à temps.",
+    "manager": "Chef de projet",
+    "team": "Equipe",
     "startDate": "Date de début",
     "endDate": "Date de fin",
     "projectColor": "Couleur du projet",
@@ -222,7 +240,8 @@
     "tagsPlaceholder": "développement, urgent, ui (séparés par des virgules)",
     "estimatedTimePlaceholder": "120",
     "personal": "Personnelle",
-    "project": "Projet"
+    "project": "Projet",
+    "typechoisie": "Type de tâche"
   },
   "projects": {
     "title": "Projets",

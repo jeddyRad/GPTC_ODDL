@@ -250,21 +250,19 @@ class ApiService {
   }
 
   async updateComment(taskId: string, commentId: string, updates: Partial<Comment>): Promise<Comment> {
-    this.validateUUID(taskId, 'task');
     this.validateUUID(commentId, 'comment');
     return this.request<Comment>({
       method: 'PUT',
-      url: `/api/tasks/${taskId}/comments/${commentId}/`,
+      url: `/api/comments/${commentId}/`,
       data: updates,
     });
   }
 
   async deleteComment(taskId: string, commentId: string): Promise<void> {
-    this.validateUUID(taskId, 'task');
     this.validateUUID(commentId, 'comment');
     return this.request<void>({
       method: 'DELETE',
-      url: `/api/tasks/${taskId}/comments/${commentId}/`,
+      url: `/api/comments/${commentId}/`,
     });
   }
 

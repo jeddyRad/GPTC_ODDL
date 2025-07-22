@@ -1,15 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import history from 'connect-history-api-fallback';
+import { resolve } from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  assetsInclude: ['**/*.png', '**/*.PNG'], // Supporte les deux casses
   plugins: [react()],
   resolve: {
     alias: {
-      '@': '/src', // Utilisation du chemin absolu Vite, compatible navigateur
+      '@': resolve(__dirname, 'src'), // Alias pour '@/'
     },
   },
+  assetsInclude: ['**/*.png', '**/*.PNG'], // Supporte les deux casses
   server: {
     port: 5173,
     proxy: {
@@ -30,6 +32,14 @@ export default defineConfig({
           });
         },
       }
+    },
+    // Pour Vite 4+, utiliser configurePreviewServer pour le fallback SPA
+    configurePreviewServer(server) {
+      server.middlewares.use(history());
+    },
+    // Pour le dev, utiliser configureServer
+    configureServer(server) {
+      server.middlewares.use(history());
     },
   },
 });

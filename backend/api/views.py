@@ -352,10 +352,37 @@ class TacheViewSet(viewsets.ModelViewSet):
         Assigne l'utilisateur courant comme créateur de la tâche
         """
         utilisateur = getattr(self.request.user, 'utilisateur', None)
-        serializer.save(creator=utilisateur)
+        tache = serializer.save(creator=utilisateur)
+        # Notifier tous les assignés sauf le créateur
+        assignes = tache.assignees.exclude(id=tache.creator.id) if tache.creator else tache.assignees.all()
+        for user in assignes:
+            Notification.objects.create(
+                utilisateur=user,
+                type='task_assigned',
+                titre='Nouvelle tâche assignée',
+                message=f'La tâche "{tache.title}" vous a été assignée.',
+                priorite='medium',
+                related_id=tache.id
+            )
 
     def perform_update(self, serializer):
-        serializer.save()
+        old_instance = self.get_object()
+        old_status = old_instance.status
+        tache = serializer.save()
+        # Si le statut a changé, notifier tous les assignés et le créateur
+        if tache.status != old_status:
+            destinataires = list(tache.assignees.all())
+            if tache.creator and tache.creator not in destinataires:
+                destinataires.append(tache.creator)
+            for user in destinataires:
+                Notification.objects.create(
+                    utilisateur=user,
+                    type='status_update',
+                    titre='Statut de tâche modifié',
+                    message=f'Le statut de la tâche "{tache.title}" est passé à {tache.status}.',
+                    priorite='medium',
+                    related_id=tache.id
+                )
 
     def get_object(self):
         """
@@ -1207,6 +1234,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
         if not utilisateur:
             return Notification.objects.none()
         return Notification.objects.filter(utilisateur=utilisateur)
+
+    def partial_update(self, request, *args, **kwargs):
+        # Support PATCH /api/notifications/<id>/ pour mettre à jour est_lue
+        instance = self.get_object()
+        data = request.data.copy()
+        # Mapper isRead (frontend) vers est_lue (backend)
+        if 'isRead' in data:
+            data['est_lue'] = data.pop('isRead')
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 class ServiceManagerCreateAPIView(APIView):
     """API pour créer un service et un manager associé en une seule opération atomique."""

@@ -90,36 +90,68 @@ export const AttachmentDropzone: React.FC<AttachmentDropzoneProps> = ({
     <div className="w-full">
       <div
         {...getRootProps()}
-        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 transition-colors duration-200 cursor-pointer bg-blue-50 hover:bg-blue-100 border-blue-300 ${isDragActive ? 'bg-blue-100 border-blue-500' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 transition-all duration-300 cursor-pointer ${
+          isDragActive 
+            ? 'bg-blue-100 border-blue-500 scale-105 shadow-lg' 
+            : 'bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-300 hover:border-blue-400 hover:shadow-md'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''} dark:from-blue-900/20 dark:to-indigo-900/20 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 dark:border-blue-700`}
         aria-disabled={disabled}
         aria-label={ariaLabel}
       >
         <input {...getInputProps()} ref={inputRef} id="attachment-upload-input" name="attachment-upload" />
         <label htmlFor="attachment-upload-input" className="w-full flex flex-col items-center cursor-pointer">
-          <Upload className="w-10 h-10 text-blue-400 mb-2" />
-          <p className="text-blue-700 font-medium mb-1">{helpText}</p>
-          <p className="text-gray-500 text-sm">ou <span className="underline cursor-pointer text-blue-600">{uploadingText || 'parcourir'}</span></p>
-          <p className="text-xs text-gray-400 mt-1">Taille max : {Math.round(maxSize / 1024 / 1024)} Mo</p>
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-4 rounded-full mb-4">
+            <Upload className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          </div>
+          <p className="text-blue-800 dark:text-blue-300 font-bold text-lg mb-2">{helpText}</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">
+            ou <span className="underline cursor-pointer text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-800 dark:hover:text-blue-300 transition-colors">{uploadingText || 'parcourir'}</span>
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full">
+            Taille max : {Math.round(maxSize / 1024 / 1024)} Mo
+          </p>
         </label>
       </div>
       {files.length > 0 && (
-        <ul className="mt-4 space-y-2">
+        <div className="mt-6">
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            Fichiers joints ({files.length})
+          </h4>
+          <ul className="space-y-3">
           {files.map(file => (
-            <li key={file.id || file.name} className="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 px-3 py-2">
-              <FileText className="w-5 h-5 text-blue-400 mr-2" />
-              <span className="flex-1 truncate text-gray-900">{file.name}</span>
-              <span className="text-xs text-gray-500 ml-2">{(file.size / 1024).toFixed(1)} Ko</span>
+            <li key={file.id || file.name} className="flex items-center bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 hover:shadow-md transition-all duration-200">
+              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg mr-3">
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="block font-medium text-gray-900 dark:text-white truncate">{file.name}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{(file.size / 1024).toFixed(1)} Ko</span>
+              </div>
+              <div className="flex items-center gap-2 ml-3">
               {onDownload && file.id && file.url && (
-                <button onClick={() => onDownload(file.id!)} className="ml-2 p-1 rounded hover:bg-blue-100" title={downloadText} aria-label={downloadText}>
-                  <Download className="w-4 h-4 text-blue-500" />
+                <button 
+                  onClick={() => onDownload(file.id!)} 
+                  className="p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors duration-200" 
+                  title={downloadText} 
+                  aria-label={downloadText}
+                >
+                  <Download className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </button>
               )}
-              <button onClick={() => file.id && onDelete(file.id)} className="ml-2 p-1 rounded hover:bg-red-100" title={deleteText} aria-label={deleteText}>
-                <X className="w-4 h-4 text-red-500" />
+              <button 
+                onClick={() => file.id && onDelete(file.id)} 
+                className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200" 
+                title={deleteText} 
+                aria-label={deleteText}
+              >
+                <X className="w-4 h-4 text-red-600 dark:text-red-400" />
               </button>
+              </div>
             </li>
           ))}
         </ul>
+        </div>
       )}
     </div>
   );

@@ -88,7 +88,7 @@ export function NotificationsView() {
       case 'task_assigned':
       case 'deadline_approaching':
       case 'comment_mention':
-        navigate(`/tasks/${notification.relatedId}`);
+        navigate(`/dashboard/tasks/${notification.relatedId}`);
         break;
       case 'project_update':
         navigate(`/dashboard/projects/${notification.relatedId}`);
@@ -240,14 +240,24 @@ export function NotificationsView() {
                             <div className="w-2 h-2 bg-blue-500 rounded-full" />
                           )}
                           <button
-                            onClick={() => markNotificationAsRead(notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent the parent div's click handler from firing
+                              markNotificationAsRead(notification.id);
+                              addNotification({
+                                type: 'success',
+                                message: 'Notification marquée comme lue'
+                              });
+                            }}
                             className="p-2 text-green-600 hover:bg-green-100 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
                             title={t('notifications.markAsRead')}
                           >
                             <CheckCircle className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteNotification(notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent the parent div's click handler from firing
+                              handleDeleteNotification(notification.id);
+                            }}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
                             title={t('notifications.deleteNotification')}
                           >

@@ -3,6 +3,7 @@
  */
 
 import { Task, Project, Service, User, Notification, EmployeeLoan, UrgencyMode, Comment, Attachment } from '../types';
+import i18n from '@/i18n';
 
 /**
  * Transforme un service du format backend vers le format frontend
@@ -116,15 +117,32 @@ export function transformUser(backendUser: any): User {
  * Transforme une notification du format backend vers le format frontend
  */
 export function transformNotification(backendNotification: any): Notification {
+  // Traduction du statut dans le titre/message si type status_update
+  let title = backendNotification.title || backendNotification.titre;
+  let message = backendNotification.message;
+  if ((backendNotification.type || '') === 'status_update') {
+    // Chercher le statut dans le message et le traduire
+    const match = /statut.*["“”«»]?([a-zA-Z_]+)["“”«»]?/i.exec(message);
+    if (match && match[1]) {
+      const frStatus = translateStatus(match[1]);
+      message = message.replace(match[1], frStatus);
+    }
+    // Optionnel : traduire le titre aussi
+    if (title && title.toLowerCase().includes('statut')) {
+      title = i18n.t('task.status');
+    }
+  }
   return {
     id: backendNotification.id,
-    userId: backendNotification.userId || backendNotification.user,
+    userId: backendNotification.userId || backendNotification.utilisateur || backendNotification.user,
     type: backendNotification.type || 'task_assigned',
-    title: backendNotification.title || backendNotification.titre,
-    message: backendNotification.message,
-    isRead: backendNotification.isRead || backendNotification.est_lue || false,
-    createdAt: new Date(backendNotification.createdAt || backendNotification.date_creation),
-    relatedId: backendNotification.relatedId,
+    title,
+    message,
+    isRead: typeof backendNotification.isRead !== 'undefined' ? backendNotification.isRead : (typeof backendNotification.est_lue !== 'undefined' ? backendNotification.est_lue : false),
+    createdAt: backendNotification.createdAt
+      ? new Date(backendNotification.createdAt)
+      : (backendNotification.date_creation ? new Date(backendNotification.date_creation) : new Date()),
+    relatedId: backendNotification.relatedId || backendNotification.related_id || '',
     priority: backendNotification.priority || backendNotification.priorite || 'medium',
     expiresAt: backendNotification.expiresAt ? new Date(backendNotification.expiresAt) : undefined,
   };
@@ -170,8 +188,14 @@ export function transformUrgencyMode(backendMode: any): UrgencyMode {
 
 /**
  * Transforme un commentaire du format backend vers le format frontend
+ * users?: User[] permet d'enrichir avec le nom complet de l'auteur
  */
-export function transformComment(backendComment: any): Comment {
+export function transformComment(backendComment: any, users?: User[]): Comment {
+  let authorFullName = undefined;
+  if (users && backendComment.authorId) {
+    const user = users.find(u => u.id === backendComment.authorId);
+    if (user) authorFullName = user.fullName || `${user.firstName} ${user.lastName}`;
+  }
   return {
     id: backendComment.id,
     content: backendComment.content || backendComment.contenu,
@@ -182,6 +206,7 @@ export function transformComment(backendComment: any): Comment {
     replies: backendComment.replies || [],
     isEdited: backendComment.isEdited || backendComment.est_modifie || false,
     editedAt: backendComment.editedAt ? new Date(backendComment.editedAt) : undefined,
+    authorFullName,
   };
 }
 
@@ -299,4 +324,19 @@ export function transformCommentToBackend(frontendComment: Partial<Comment>): an
     content: frontendComment.content,
     mentions: frontendComment.mentions,
   };
+}
+
+// Fonction utilitaire pour traduire les statuts de tâche
+export function translateStatus(status: string): string {
+  const map: Record<string, string> = {
+    'todo': i18n.t('task.todo'),
+    'in_progress': i18n.t('task.inProgress'),
+    'review': i18n.t('task.review'),
+    'completed': i18n.t('task.completed'),
+    'planning': i18n.t('project.planning'),
+    'active': i18n.t('project.active'),
+    'on_hold': i18n.t('project.onHold'),
+    'completed_project': i18n.t('project.completed'),
+  };
+  return map[status] || status;
 }

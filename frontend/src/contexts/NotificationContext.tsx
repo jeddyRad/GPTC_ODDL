@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useCallback, useState, ReactNode } from 'react';
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error';
+export type NotificationType =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'task_assigned'
+  | 'deadline_approaching'
+  | 'comment_mention'
+  | 'project_update'
+  | 'security_alert';
 
 export interface Notification {
   id: string;
@@ -8,6 +17,7 @@ export interface Notification {
   title?: string;
   message: string;
   duration?: number; // en millisecondes
+  relatedId?: string;
 }
 
 interface NotificationContextType {

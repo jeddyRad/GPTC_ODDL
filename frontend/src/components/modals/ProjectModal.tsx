@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Paperclip, Eye } from 'lucide-react';
+import { X, Save, Trash2, Paperclip, Eye, Edit } from 'lucide-react';
 import type { Project, Attachment } from '@/types';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { Button } from '../common/Button';
 import { AttachmentDropzone } from '../common/AttachmentDropzone';
 import apiService from '@/services/api';
 import { uploadAttachment } from '@/services/api';
+import { Modal } from '../common/Modal';
 
 interface ProjectModalProps {
   project: Project | null;
@@ -302,19 +303,19 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
         <div className="mb-4">
           <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">{t('project.tasks')}:</span>
           <ul className="mt-1 space-y-1">
-            {projectTasks.map(t => (
-              <li key={t.id} className="flex items-center gap-2 text-xs bg-gray-50 dark:bg-gray-700 rounded px-2 py-1">
+            {projectTasks.map(task => (
+              <li key={task.id} className="flex items-center gap-2 text-xs bg-gray-50 dark:bg-gray-700 rounded px-2 py-1">
                 <span className={`px-2 py-1 rounded-full font-semibold ${
-                  t.status === 'completed' ? 'bg-green-100 text-green-800' :
-                  t.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                  t.status === 'review' ? 'bg-yellow-100 text-yellow-800' :
+                  task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                  task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                  task.status === 'review' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
-                  {t.status}
+                  {task.status}
                 </span>
-                <span className="font-medium text-gray-900 dark:text-white">{t.title}</span>
-                {t.assignedTo && t.assignedTo.length > 0 && users && (
-                  <span className="ml-2 text-gray-500">{t.assignedTo.map(uid => users.find(u => u.id === uid)?.fullName || t('task.unknown')).join(', ')}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{task.title}</span>
+                {task.assignedTo && task.assignedTo.length > 0 && users && (
+                  <span className="ml-2 text-gray-500">{task.assignedTo.map(uid => users.find(u => u.id === uid)?.fullName || t('task.unassigned')).join(', ')}</span>
                 )}
               </li>
             ))}
@@ -326,135 +327,202 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-md max-w-2xl w-full max-h-[90vh] overflow-y-auto relative p-0"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-            const form = e.currentTarget.querySelector('form');
-            if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-          }
-        }}
-        tabIndex={-1}
-      >
-        {/* Mode vue détails */}
-        {!editMode && (
-          <div className="p-6">
-            <div className="flex items-center mb-4 gap-4">
-              <h2 className="text-2xl font-bold text-primary-700 dark:text-primary-300 flex items-center">
-                {project?.name}
-                {project && Array.isArray(project.attachments) && project.attachments.length > 0 && (
-                  <span title={t('project.attachments')} className="flex items-center text-gray-400 dark:text-gray-500 ml-2">
+    <Modal isOpen={isOpen} onClose={onClose} title={project ? t('project.edit') : t('project.new')} size="2xl">
+      {/* Mode vue détails */}
+      {!editMode && (
+        <div className="p-8">
+          <div className="flex items-center mb-6 gap-4">
+            <h2 className="text-3xl font-bold text-blue-700 dark:text-blue-300 flex items-center">
+              {project?.name}
+              {project && Array.isArray(project.attachments) && project.attachments.length > 0 && (
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg ml-3" title={t('project.attachments')}>
+                  <div className="flex items-center text-blue-600 dark:text-blue-400">
                     <Paperclip className="w-5 h-5" />
-                    <span className="text-xs ml-1">{project.attachments.length}</span>
-                  </span>
-                )}
-              </h2>
-              {project?.color && (
-                <span className="inline-block w-6 h-6 rounded-full border border-gray-300 ml-2" style={{ backgroundColor: project.color }} title={t('project.projectColor')} />
+                    <span className="text-sm font-semibold ml-1">{project.attachments.length}</span>
+                  </div>
+                </div>
               )}
+            </h2>
+            
+            {/* Enhanced status badges */}
+            <div className="flex items-center gap-3">
+              {project?.color && (
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600">
+                  <span className="inline-block w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: project.color }} />
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Couleur</span>
+                </div>
+              )}
+              
               {project?.status && (
-                <span className={`px-2 py-1 rounded text-xs font-semibold ml-2 ${
-                  project.status === 'active' ? 'bg-green-100 text-green-800' :
-                  project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
-                  project.status === 'on_hold' ? 'bg-yellow-100 text-yellow-800' :
-                  project.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                  'bg-gray-200 text-gray-600'
+                <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${
+                  project.status === 'active' ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 dark:from-green-900/30 dark:to-green-800/30 dark:text-green-300' :
+                  project.status === 'planning' ? 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-300' :
+                  project.status === 'on_hold' ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 dark:from-yellow-900/30 dark:to-yellow-800/30 dark:text-yellow-300' :
+                  project.status === 'completed' ? 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 dark:from-gray-700 dark:to-gray-600 dark:text-gray-300' :
+                  'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 dark:from-gray-700 dark:to-gray-600 dark:text-gray-400'
                 }`}>
                   {t(`project.${project.status}`)}
                 </span>
               )}
+              
               {project?.riskLevel && (
-                <span className={`px-2 py-1 rounded text-xs font-semibold ml-2 ${
-                  project.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                  project.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                  project.riskLevel === 'low' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
+                <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${
+                  project.riskLevel === 'high' ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 dark:from-red-900/30 dark:to-red-800/30 dark:text-red-300' :
+                  project.riskLevel === 'medium' ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 dark:from-yellow-900/30 dark:to-yellow-800/30 dark:text-yellow-300' :
+                  project.riskLevel === 'low' ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800 dark:from-green-900/30 dark:to-green-800/30 dark:text-green-300' :
+                  'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 dark:from-gray-700 dark:to-gray-600 dark:text-gray-300'
                 }`}>
-                  {t(`project.${project.riskLevel}`)}
+                  Risque {t(`project.${project.riskLevel}`)}
                 </span>
               )}
             </div>
-            {project?.description && (
-              <p className="mb-4 text-gray-700 dark:text-gray-300 whitespace-pre-line">{project.description}</p>
-            )}
-            <div className="flex flex-wrap gap-4 mb-4 text-xs text-gray-600 dark:text-gray-400">
-              {project?.startDate && (
-                <span><strong>{t('project.startDate')}:</strong> {project.startDate}</span>
-              )}
-              {project?.endDate && (
-                <span><strong>{t('project.endDate')}:</strong> {project.endDate}</span>
-              )}
-              {typeof project?.progress === 'number' && (
-                <span><strong>{t('project.progress')}:</strong> {project.progress}%</span>
-              )}
-              {typeof project?.taskCount === 'number' && (
-                <span><strong>{t('project.taskCount')}:</strong> {project.taskCount}</span>
-              )}
-              {typeof project?.completedTaskCount === 'number' && (
-                <span><strong>{t('project.completedTaskCount')}:</strong> {project.completedTaskCount}</span>
-              )}
+          </div>
+          
+          {project?.description && (
+            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">{project.description}</p>
             </div>
-            <div className="mb-4">
-              <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">{t('project.manager')}:</span>
-              {project?.chefDetails ? (
-                <span className="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs ml-1">{project.chefDetails.fullName} ({project.chefDetails.role})</span>
-              ) : (
-                <span className="text-xs text-gray-400 ml-1">{t('project.noManager')}</span>
-              )}
-            </div>
-            <div className="mb-4">
-              <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">{t('project.team')}:</span>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {project?.memberDetails && project.memberDetails.length > 0 ? (
-                  project.memberDetails.map(m => (
-                    <span key={m.id} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{m.fullName} ({m.role})</span>
-                  ))
-                ) : (
-                  <span className="text-xs text-gray-400">{t('project.noMembers')}</span>
-                )}
+          )}
+          
+          {/* Enhanced project metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {project?.startDate && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">{t('project.startDate')}</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">{project.startDate}</div>
               </div>
-            </div>
-            {/* Services liés */}
-            {project?.serviceIds && services && project.serviceIds.length > 0 && (
-              <div className="mb-4">
-                <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">{t('project.services')}:</span>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {project.serviceIds.map(sid => {
-                    const service = services.find(s => s.id === sid);
-                    if (!service) return null;
-                    return (
-                      <span key={sid} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs" title={service.description}>
-                        {service.name}
-                        {service.color && (
-                          <span className="inline-block w-3 h-3 rounded-full ml-1 border border-gray-300" style={{ backgroundColor: service.color }} />
-                        )}
-                      </span>
-                    );
-                  })}
+            )}
+            {project?.endDate && (
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
+                <div className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-1">{t('project.endDate')}</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">{project.endDate}</div>
+              </div>
+            )}
+            {typeof project?.progress === 'number' && (
+              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
+                <div className="text-xs font-semibold text-green-600 dark:text-green-400 mb-1">{t('project.progress')}</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">{project.progress}%</div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                  <div className="bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${project.progress}%` }}></div>
                 </div>
               </div>
             )}
-            {projectTasksBlock}
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="primary" onClick={() => setEditMode(true)}>{t('common.edit')}</Button>
-              <Button variant="ghost" onClick={onClose}>{t('common.close')}</Button>
+            {typeof project?.taskCount === 'number' && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
+                <div className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-1">{t('project.taskCount')}</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">
+                  {project.taskCount}
+                  {typeof project?.completedTaskCount === 'number' && (
+                    <span className="text-xs text-gray-500 ml-1">({project.completedTaskCount} terminées)</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Enhanced team section */}
+          <div className="space-y-6">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800">
+              <h4 className="font-bold text-sm text-yellow-800 dark:text-yellow-300 mb-2 flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                {t('project.manager')}
+              </h4>
+            {project?.chefDetails ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-yellow-200 dark:bg-yellow-800 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-yellow-800 dark:text-yellow-200">
+                      {project.chefDetails.fullName.charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{project.chefDetails.fullName}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">{project.chefDetails.role}</div>
+                  </div>
+                </div>
+            ) : (
+                <div className="text-sm text-gray-500 dark:text-gray-400 italic">{t('project.noManager')}</div>
+            )}
+            </div>
+            
+            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
+              <h4 className="font-bold text-sm text-green-800 dark:text-green-300 mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                {t('project.team')} ({project?.memberDetails?.length || 0})
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {project?.memberDetails && project.memberDetails.length > 0 ? (
+                  project.memberDetails.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 bg-white dark:bg-gray-800 p-3 rounded-lg">
+                      <div className="w-8 h-8 bg-green-200 dark:bg-green-800 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-green-800 dark:text-green-200">
+                          {m.fullName.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white text-sm">{m.fullName}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">{m.role}</div>
+                      </div>
+                    </div>
+                ))
+              ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic col-span-2">{t('project.noMembers')}</div>
+              )}
+              </div>
             </div>
           </div>
-        )}
-        {/* Mode édition (formulaire) */}
-        {editMode && (
-          <>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {project ? t('project.edit') : t('project.new')}
-              </h2>
-              {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+          
+          {/* Services liés */}
+          {project?.serviceIds && services && project.serviceIds.length > 0 && (
+            <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+              <h4 className="font-bold text-sm text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                {t('project.services')} ({project.serviceIds.length})
+              </h4>
+              <div className="flex flex-wrap gap-3">
+                {project.serviceIds.map(sid => {
+                  const service = services.find(s => s.id === sid);
+                  if (!service) return null;
+                  return (
+                    <div key={sid} className="flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg" title={service.description}>
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                      {service.name}
+                      </span>
+                      {service.color && (
+                        <span className="inline-block w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: service.color }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">{t('project.generalInfo')}</h3>
+          )}
+          {projectTasksBlock}
+          
+          {/* Enhanced action buttons */}
+          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="primary" size="lg" onClick={() => setEditMode(true)}>
+              <Edit className="w-4 h-4 mr-2" />
+              {t('common.edit')}
+            </Button>
+            <Button variant="secondary" size="lg" onClick={onClose}>
+              <X className="w-4 h-4 mr-2" />
+              {t('common.close')}
+            </Button>     
+          </div>
+        </div>
+      )}
+      {/* Mode édition (formulaire) */}
+      {editMode && (
+        <>
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {project ? t('project.edit') : t('project.new')}
+            </h2>
+            {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+          </div>
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">{t('project.generalInfo')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="project-name">
@@ -656,12 +724,12 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
             </div>
 
             <div className="flex items-center justify-end gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
-              <Button variant="ghost" leftIcon={<X />} title={t('common.close')} aria-label={t('common.close')} onClick={onClose} />
+              <Button variant="ghost" leftIcon={<X />} title={t('common.close')} aria-label={t('common.close')} onClick={onClose}>{t('common.close')}</Button>
               {project && !readOnly && (
-                <Button variant="ghost" leftIcon={<Trash2 />} title={t('project.delete')} aria-label={t('project.delete')} onClick={handleDelete} />
+                <Button variant="ghost" leftIcon={<Trash2 />} title={t('project.delete')} aria-label={t('project.delete')} onClick={handleDelete}>{t('project.delete')}</Button>
               )}
               {!readOnly && (
-                <Button variant="ghost" leftIcon={<Save />} title={project ? t('project.save') : t('project.create')} aria-label={project ? t('project.save') : t('project.create')} type="submit" />
+                <Button variant="ghost" leftIcon={<Save />} title={project ? t('project.save') : t('project.create')} aria-label={project ? t('project.save') : t('project.create')} type="submit">{project ? t('project.save') : t('project.create')}</Button>
               )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
@@ -671,7 +739,6 @@ export function ProjectModal({ project, isOpen, onClose, onSave, readOnly = fals
           </form>
         </>
       )}
-    </div>
-  </div>
-);
+    </Modal>
+  );
 }

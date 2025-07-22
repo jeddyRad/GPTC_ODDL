@@ -1,129 +1,223 @@
-import { useState } from 'react';
-import { LogIn, Mail, Lock, AlertCircle, Building2, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogIn, Mail, Lock, AlertCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { Button, LoadingSpinner } from '@/components/common';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { Button } from '@/components/common/Button';
+import { FormField } from '@/components/common/FormField';
 import oddlLogo from '../../assets/oddl.png';
+
 export function LoginForm() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Show success message from registration
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the message from location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
+
+  // Auto-focus username field
+  useEffect(() => {
+    const usernameField = document.getElementById('field-username');
+    if (usernameField) {
+      usernameField.focus();
+    }
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear specific field error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.username.trim()) {
+      newErrors.username = 'Le nom d\'utilisateur est requis';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Le nom d\'utilisateur doit contenir au moins 3 caractères';
+    }
+    
+    if (!formData.password.trim()) {
+      newErrors.password = 'Le mot de passe est requis';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     
+    if (!validateForm()) {
+      return;
+    }
+
     try {
-      const response = await login(username, password);
+      const response = await login(formData.username, formData.password);
       
       if (!response.success) {
-        setError(response.error || 'Nom d\'utilisateur ou mot de passe incorrect.');
+        setErrors({ general: response.error || 'Nom d\'utilisateur ou mot de passe incorrect' });
       } else {
         navigate('/dashboard');
       }
-    } catch (err) {
-      setError('Une erreur est survenue lors de la connexion. Veuillez réessayer.');
-      console.error('Login error:', err);
+    } catch (error) {
+      setErrors({ general: 'Une erreur est survenue lors de la connexion' });
+      console.error('Login error:', error);
     }
   };
 
   return (
-    <>
-      <div className="text-center animate-fade-in">
-        {/* Logo personnalisé de l'application */}
-        {/* Logo harmonisé et agrandi */}
-        <div className="mx-auto h-32 w-32 bg-gradient-to-b from-white to-black-600 rounded-full flex items-center justify-center mb-6 shadow-2xl">
-          <img
-            src={oddlLogo}
-            alt="Logo GPTC ODDL"
-            className="w-28 h-28 object-contain"
-          />
+    <div className="min-h-screen bg-gradient-to-b from-white-50 via-white to-white-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+        <div className="mx-auto h-20 w-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <img
+              src={oddlLogo}
+              alt="Logo GPTC ODDL"
+              className="w-16 h-16 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">GPTC ODDL</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-1">Observatoire de la Décentralisation et du Développement Local</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">Plateforme de gestion collaborative</p>
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">GPTC ODDL</h2>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">Observatoire de la Décentralisation et du Développement Local</p>
-        <p className="text-sm text-gray-500 dark:text-gray-500">Plateforme de gestion collaborative</p>
-      </div>
 
-      <div className="max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8 animate-slide-in border border-gray-200 dark:border-gray-700 mx-auto mt-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Nom d'utilisateur ou email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Nom d'utilisateur ou email"
-                  required
-                />
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Votre mot de passe"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl animate-fade-in">
+            <p className="text-green-800 dark:text-green-200 text-sm text-center">
+              {successMessage}
+            </p>
+          </div>
+        )}
+
+        {/* Main Form */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 animate-slide-in">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Connexion</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Accédez à votre espace de travail</p>
           </div>
 
-          {error && (
-            <div className="flex items-center space-x-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-              <AlertCircle className="w-5 h-5" />
-              <span className="text-sm">{error}</span>
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            {/* General Error */}
+            {errors.general && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl animate-shake" role="alert">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-red-800 dark:text-red-200 text-sm">{errors.general}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Username Field */}
+            <FormField
+              label="Nom d'utilisateur ou email"
+              name="username"
+              type="text"
+              value={formData.username}
+              onChange={handleChange}
+              error={errors.username}
+              placeholder="votre@email.com ou nom_utilisateur"
+              required
+              icon={<Mail className="h-5 w-5" />}
+              autoComplete="username"
+            />
+
+            {/* Password Field */}
+            <FormField
+              label="Mot de passe"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              error={errors.password}
+              placeholder="Votre mot de passe"
+              required
+              icon={<Lock className="h-5 w-5" />}
+              showPasswordToggle
+              showPassword={showPassword}
+              onTogglePassword={() => setShowPassword(!showPassword)}
+              autoComplete="current-password"
+            />
+
+            {/* Options */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors"
+                />
+                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">
+                  Se souvenir de moi
+                </span>
+              </label>
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors focus:outline-none focus:underline"
+              >
+                Mot de passe oublié ?
+              </Link>
             </div>
-          )}
 
-          <Button
-            type="submit"
-            disabled={isLoading}
-            variant="primary"
-            size="lg"
-            className="w-full"
-            isLoading={isLoading}
-            leftIcon={!isLoading && <LogIn className="w-5 h-5" />}
-          >
-            {isLoading ? 'Connexion...' : 'Se connecter'}
-          </Button>
-        </form>
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              isLoading={isLoading}
+              disabled={!formData.username || !formData.password}
+              leftIcon={!isLoading ? <LogIn className="h-5 w-5" /> : undefined}
+              rightIcon={!isLoading ? <ArrowRight className="h-4 w-4" /> : undefined}
+              className="w-full"
+            >
+              {isLoading ? 'Connexion en cours...' : 'Se connecter'}
+            </Button>
+          </form>
 
-        <div className="mt-6 text-center">
-          <Link to="/register" className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
-            Pas de compte ? S'inscrire
-          </Link>
+          {/* Register Link */}
+          <div className="mt-6 text-center">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              Pas encore de compte ?{' '}
+              <Link 
+                to="/register" 
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors focus:outline-none focus:underline"
+              >
+                Créer un compte
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-xs text-gray-500 dark:text-gray-400 mt-6">
+          <p>© 2024 ODDL - Observatoire du Développement Local</p>
+          <p>Plateforme sécurisée de gestion collaborative</p>
         </div>
       </div>
-
-      <div className="text-center text-xs text-gray-500 dark:text-gray-400 mt-6">
-        <p>© 2024 ODDL - Observatoire du Développement Local</p>
-        <p>Plateforme sécurisée de gestion collaborative</p>
-      </div>
-    </>
+    </div>
   );
 }

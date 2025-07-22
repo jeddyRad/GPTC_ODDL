@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { Task, Project, Service, User, Notification, EmployeeLoan, UrgencyMode, Comment, Attachment } from '../types';
 import { isValidUUID } from '../utils/uuid-helpers';
 import { getToken, refreshTokenIfNeeded } from '@/utils/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotification } from '@/contexts/NotificationContext';
 import { 
   transformService, 
   transformTask, 
@@ -73,6 +74,7 @@ export { DataContext };
 
 const DataProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotification();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -90,6 +92,27 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
       refreshData();
     }
   }, [user]);
+
+  // Toast automatique pour chaque nouvelle notification non lue
+  const notifiedIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    notifications.forEach((notif) => {
+      if (
+        notif.userId === user.id &&
+        !notif.isRead &&
+        !notifiedIds.current.has(notif.id)
+      ) {
+        addNotification({
+          type: notif.type as any,
+          title: notif.title,
+          message: notif.message,
+          relatedId: notif.relatedId,
+        });
+        notifiedIds.current.add(notif.id);
+      }
+    });
+  }, [notifications, user, addNotification]);
 
   const refreshData = async () => {
     setIsLoading(true);
@@ -362,9 +385,19 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addNotification = async (notification: Omit<Notification, 'id' | 'createdAt'>) => {
+  // Définir un type local pour les notifications backend
+  interface NotificationBackendInput {
+    userId: string;
+    type: Notification["type"];
+    title: string;
+    message: string;
+    priority: Notification["priority"];
+    isRead?: boolean;
+    relatedId?: string;
+  }
+
+  const addBackendNotification = async (notification: NotificationBackendInput) => {
     try {
-      // Adapter le mapping des champs pour l'API
       const backendNotification = {
         title: notification.title,
         message: notification.message,
@@ -496,7 +529,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     const promises = assignedUserIds
       .filter(userId => userId !== user.id) // Ne pas notifier l'assigneur
       .map(userId => 
-        addNotification({
+        addBackendNotification({
           userId,
           type: 'task_assigned',
           title: 'Nouvelle tâche assignée',
@@ -516,7 +549,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     const promises = mentionedUserIds
       .filter(userId => userId !== comment.authorId) // Ne pas notifier l'auteur
       .map(userId => 
-        addNotification({
+        addBackendNotification({
           userId,
           type: 'comment_mention',
           title: 'Vous avez été mentionné',
@@ -542,7 +575,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     if (hoursUntilDeadline <= 24 && hoursUntilDeadline > 0) {
       const promises = Array.isArray(task.assignedTo) ? task.assignedTo : []
         .map(userId =>
-          addNotification({
+          addBackendNotification({
             userId,
             type: 'deadline_approaching',
             title: 'Échéance proche',
@@ -621,7 +654,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
       addComment,
       addAttachment,
       markNotificationAsRead,
-      addNotification,
+      addNotification: addBackendNotification, // pour compatibilité
       createEmployeeLoan,
       updateEmployeeLoan,
       activateUrgencyMode,

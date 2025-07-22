@@ -16,6 +16,8 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { AuthLayout, DashboardLayout } from '@/layouts';
 import { ProtectedRoute } from './ProtectedRoute';
 import { useTranslation } from 'react-i18next';
+import { TaskDetailsPage } from '@/pages/dashboard/TaskDetailsPage';
+import { ProjectDetailsPage } from '@/pages/dashboard/ProjectDetailsPage';
 
 // Composant temporaire pour les pages en cours de développement
 function UnderConstructionPage() {
@@ -67,8 +69,16 @@ export const router = createBrowserRouter([
             element: <TasksPage />,
           },
           {
+            path: 'tasks/:id',
+            element: <TaskDetailsPage />,
+          },
+          {
             path: 'projects',
             element: <ProjectsPage />,
+          },
+          {
+            path: 'projects/:id',
+            element: <ProjectDetailsPage />,
           },
           {
             path: 'calendar',
