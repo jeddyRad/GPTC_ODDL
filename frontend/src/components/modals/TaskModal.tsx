@@ -48,6 +48,7 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchUser, setSearchUser] = useState('');
 
   useEffect(() => {
     if (task?.id) {
@@ -631,6 +632,41 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Section assignation améliorée */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('task.assignedTo')}
+              </label>
+              <input
+                type="text"
+                placeholder={t('common.search')}
+                value={searchUser}
+                onChange={e => setSearchUser(e.target.value)}
+                className="mb-2 w-full px-3 py-2 border rounded"
+                disabled={!canEdit}
+              />
+              <select
+                multiple
+                value={formData.assignedTo}
+                onChange={e => {
+                  const options = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                  setFormData(prev => ({ ...prev, assignedTo: options }));
+                }}
+                className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl"
+                disabled={!canEdit}
+              >
+                {users
+                  .filter(u =>
+                    (u.fullName || u.username).toLowerCase().includes(searchUser.toLowerCase())
+                  )
+                  .map(u => (
+                    <option key={u.id} value={u.id}>
+                      {(u.fullName || u.username)} ({u.role}) {u.service ? `- ${u.service}` : ''}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
 

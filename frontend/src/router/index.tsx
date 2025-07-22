@@ -18,6 +18,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { useTranslation } from 'react-i18next';
 import { TaskDetailsPage } from '@/pages/dashboard/TaskDetailsPage';
 import { ProjectDetailsPage } from '@/pages/dashboard/ProjectDetailsPage';
+import { TeamPage } from '@/pages/dashboard/TeamPage';
 
 // Composant temporaire pour les pages en cours de développement
 function UnderConstructionPage() {
@@ -86,7 +87,7 @@ export const router = createBrowserRouter([
           },
           {
             path: 'team',
-            element: <UnderConstructionPage />,
+            element: <TeamPage />,
           },
           {
             path: 'messages',

@@ -27,7 +27,8 @@ export function DashboardLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900">
-          <div className="container mx-auto p-4">
+          {/* On force la hauteur à 100% pour que les enfants (ex: MessagesView) puissent occuper tout l'espace vertical */}
+          <div className="h-full flex flex-col min-h-0">
             <Outlet />
           </div>
         </main>

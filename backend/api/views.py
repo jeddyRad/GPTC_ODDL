@@ -502,25 +502,12 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Retourne les messages de la conversation spécifiée dans l'URL,
-        à condition que l'utilisateur soit un participant.
+        triés par date de création (du plus ancien au plus récent).
         """
-        user = getattr(self.request, 'user', None)
-        utilisateur = getattr(user, 'utilisateur', None)
-        conversation_pk = self.kwargs.get('conversation_pk')
-        if not conversation_pk or not utilisateur:
+        conversation_id = self.kwargs.get('conversation_pk')
+        if not conversation_id:
             return Message.objects.none()
-
-        # Vérifier si l'utilisateur a un profil
-        # if not hasattr(self.request.user, 'utilisateur'): # This line is removed as per new_code
-        #     return Message.objects.none()
-
-        # Vérifier si l'utilisateur est dans la conversation
-        # user = self.request.user.utilisateur # This line is removed as per new_code
-        try:
-            conversation = utilisateur.conversations.get(pk=conversation_pk)
-            return conversation.messages.all().order_by('timestamp')
-        except Conversation.DoesNotExist:
-            return Message.objects.none()
+        return Message.objects.filter(conversation_id=conversation_id).order_by('date_creation')
 
     def perform_create(self, serializer):
         """
@@ -535,7 +522,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         # user = self.request.user.utilisateur # This line is removed as per new_code
         try:
             conversation = utilisateur.conversations.get(pk=conversation_pk)
-            serializer.save(auteur=utilisateur, conversation=conversation)
+            serializer.save(conversation_id=conversation_pk, sender=utilisateur)
         except Conversation.DoesNotExist:
             raise serializers.ValidationError("Conversation non trouvée ou accès non autorisé.")
 

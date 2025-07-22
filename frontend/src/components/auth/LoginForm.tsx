@@ -114,7 +114,7 @@ export function LoginForm() {
         )}
 
         {/* Main Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 animate-slide-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-black-100 dark:border-gray-700 animate-slide-in">
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Connexion</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">Accédez à votre espace de travail</p>

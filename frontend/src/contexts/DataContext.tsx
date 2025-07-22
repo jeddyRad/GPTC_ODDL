@@ -86,11 +86,24 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Flag pour ne montrer le spinner que lors du tout premier chargement
+  const isInitialLoad = useRef(true);
+
   // Charger toutes les données au démarrage seulement si l'utilisateur est authentifié
   useEffect(() => {
     if (user) {
+      isInitialLoad.current = true;
       refreshData();
     }
+  }, [user]);
+
+  // Polling global toutes les 2 secondes pour rafraîchir toutes les entités principales
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      refreshData();
+    }, 2000); // 2 secondes
+    return () => clearInterval(interval);
   }, [user]);
 
   // Toast automatique pour chaque nouvelle notification non lue
@@ -114,8 +127,11 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [notifications, user, addNotification]);
 
+  // Correction du clignotement : isLoading n'est activé que pour le chargement initial
   const refreshData = async () => {
-    setIsLoading(true);
+    if (isInitialLoad.current) {
+      setIsLoading(true);
+    }
     setError(null);
     
     try {
@@ -131,7 +147,10 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des données');
     } finally {
-      setIsLoading(false);
+      if (isInitialLoad.current) {
+        setIsLoading(false);
+        isInitialLoad.current = false;
+      }
     }
   };
 

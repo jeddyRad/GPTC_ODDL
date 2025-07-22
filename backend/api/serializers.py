@@ -631,6 +631,7 @@ class UserSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender = UtilisateurSimpleSerializer(read_only=True)
     createdAt = serializers.DateTimeField(source='date_creation', read_only=True)
+    conversation = serializers.UUIDField(required=False, write_only=True)
 
     class Meta:
         model = Message

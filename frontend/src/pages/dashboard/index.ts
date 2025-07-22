@@ -10,3 +10,4 @@ export * from './NotificationsPage';
 export * from './SecurityPage';
 export * from './CalendarPage';
 export * from './TasksPage';
+export * from './TeamPage';

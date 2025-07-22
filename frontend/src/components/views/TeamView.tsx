@@ -1,107 +1,122 @@
-import { useState } from 'react';
-import { Users, UserPlus, Mail, AlertTriangle, Briefcase, CheckSquare, Clock } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { EmployeeLoanModal } from '@/components/modals/EmployeeLoanModal';
-import { User } from '@/types';
-import { getUserPermissions } from '@/utils/permissions';
-import { useTranslation } from 'react-i18next';
-
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-function getProfilePhotoUrl(url?: string) {
-  if (!url) return undefined;
-  if (url.startsWith("http")) return url;
-  return BACKEND_URL.replace(/\/$/, '') + url;
-}
+import { useState } from 'react';
+import { Users, Mail, Phone, MapPin, Clock, AlertTriangle, MessageCircle, User as UserIcon, List, Grid, Plus } from 'lucide-react';
+import { TaskModal } from '@/components/modals/TaskModal';
+import { MessagesView } from '@/components/views/MessagesView';
+import { User, Task } from '@/types';
 
 export function TeamView() {
-  const { services, users, employeeLoans, tasks } = useData();
-  const { user: currentUser } = useAuth();
-  const [showLoanModal, setShowLoanModal] = useState(false);
-  const { t } = useTranslation();
+  const { users, services, employeeLoans, tasks } = useData();
+  const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageTo, setMessageTo] = useState<User | null>(null);
+  const [filterService, setFilterService] = useState<string>('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterOnline, setFilterOnline] = useState('');
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskModalAssignee, setTaskModalAssignee] = useState<User | null>(null);
 
-  const permissions = getUserPermissions(currentUser);
+  // Sécurisation des accès tableaux
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeDepartments = Array.isArray(services) ? services : [];
+  const safeEmployeeLoans = Array.isArray(employeeLoans) ? employeeLoans : [];
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
 
-  const getRoleLabel = (role: User['role']) => {
+  // Statistiques
+  const totalMembers = safeUsers.length;
+  const onlineMembers = safeUsers.filter(u => u.isOnline).length;
+  const activeLoanRequests = safeEmployeeLoans.filter(loan => loan.status === 'pending' || loan.status === 'approved');
+
+  // Filtres avancés
+  let filteredUsers = safeUsers.filter(u =>
+    (u.fullName || u.username).toLowerCase().includes(search.toLowerCase())
+  );
+  if (filterService) filteredUsers = filteredUsers.filter(u => u.service === filterService);
+  if (filterRole) filteredUsers = filteredUsers.filter(u => u.role === filterRole);
+  if (filterOnline) filteredUsers = filteredUsers.filter(u => (filterOnline === 'online' ? u.isOnline : !u.isOnline));
+
+  // Helpers
+  const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'ADMIN': return t('team.admin');
-      case 'MANAGER': return t('team.manager');
-      case 'EMPLOYEE': return t('team.employee');
+      case 'ADMIN': return 'Administrateur';
+      case 'MANAGER': return 'Manager';
+      case 'EMPLOYEE': return 'Employé';
+      case 'DIRECTOR': return 'Directeur';
       default: return role;
     }
   };
-
-  const getRoleColor = (role: User['role']) => {
+  const getRoleColor = (role: string) => {
     switch (role) {
       case 'ADMIN': return 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
       case 'MANAGER': return 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300';
       case 'EMPLOYEE': return 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300';
+      case 'DIRECTOR': return 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300';
       default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
     }
   };
-  
-  const getServiceName = (serviceId: string | null) => {
-    if (!serviceId) return t('team.unassigned');
-    return services.find(s => s.id === serviceId)?.name || t('team.unknown_service');
+  const getProfilePic = (user: any) => user.profilePhoto || '/default-avatar.png';
+  const getStatusLabel = (u: any) => u.isOnline ? 'En ligne' : (u.lastLogin ? `Vu il y a ${Math.floor((Date.now() - new Date(u.lastLogin).getTime()) / (1000 * 60))} min` : 'Statut inconnu');
+
+  // Uniques services et rôles pour les filtres
+  const uniqueServices = Array.from(new Set(safeUsers.map(u => u.service).filter(Boolean)));
+  const uniqueRoles = Array.from(new Set(safeUsers.map(u => u.role)));
+
+  // Ouvre TaskModal pré-rempli avec l'utilisateur comme assigné
+  const handleAssignTask = (user: User) => {
+    setTaskModalAssignee(user);
+    setShowTaskModal(true);
   };
 
-  const activeLoanRequests = employeeLoans.filter(loan => 
-    loan.status === 'pending' || loan.status === 'approved'
-  );
-
-  // Fonction pour obtenir les tâches assignées à un utilisateur
-  const getUserTasks = (userId: string) => {
-    return tasks.filter(task => task.assignedTo && task.assignedTo.includes(userId));
+  // Ouvre la messagerie avec l'utilisateur (modale MessagesView centrée sur la conversation)
+  const handleOpenMessage = (user: User) => {
+    setMessageTo(user);
+    setShowMessageModal(true);
   };
 
-  // Fonction pour obtenir les statistiques d'un utilisateur
-  const getUserStats = (userId: string) => {
-    const userTasks = getUserTasks(userId);
-    const completedTasks = userTasks.filter(task => task.status === 'completed');
-    const pendingTasks = userTasks.filter(task => task.status !== 'completed');
-    const overdueTasks = userTasks.filter(task => 
-      new Date(task.deadline) < new Date() && task.status !== 'completed'
-    );
-
-    return {
-      total: userTasks.length,
-      completed: completedTasks.length,
-      pending: pendingTasks.length,
-      overdue: overdueTasks.length
-    };
+  // Ferme la modale d’assignation de tâche
+  const handleCloseTaskModal = () => {
+    setShowTaskModal(false);
+    setTaskModalAssignee(null);
   };
 
-  const handleInviteUser = () => {
-    // TODO: Implement invitation logic
-    console.log('Invite user clicked');
+  // Ferme la modale de messagerie
+  const handleCloseMessageModal = () => {
+    setShowMessageModal(false);
+    setMessageTo(null);
   };
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-full transition-colors duration-200">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('team.team_title')}</h2>
-          <p className="text-gray-600 dark:text-gray-400">{t('team.team_description')}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Équipe</h2>
+          <p className="text-gray-600 dark:text-gray-400">Gérez votre équipe et les collaborations inter-services</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowLoanModal(true)}
-            className="flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors"
-            title={t('team.request_loan_tooltip')}
-            aria-label={t('team.request_loan_aria_label')}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            <span>{t('team.request_loan_button')}</span>
-          </button>
-          <button
-            onClick={handleInviteUser}
-            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-            title={t('team.invite_user_tooltip')}
-            aria-label={t('team.invite_user_aria_label')}
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            <span>{t('team.invite_user_button')}</span>
-          </button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Rechercher un membre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="px-3 py-2 border rounded"
+          />
+          <select value={filterService} onChange={e => setFilterService((e.target.value as string) || '')} className="px-2 py-1 border rounded">
+            <option value="">Tous services</option>
+            {uniqueServices.map(s => <option key={s} value={s}>{safeDepartments.find(d => d.id === s)?.name || s}</option>)}
+          </select>
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="px-2 py-1 border rounded">
+            <option value="">Tous rôles</option>
+            {uniqueRoles.map(r => <option key={r} value={r}>{getRoleLabel(r)}</option>)}
+          </select>
+          <select value={filterOnline} onChange={e => setFilterOnline(e.target.value)} className="px-2 py-1 border rounded">
+            <option value="">Tous statuts</option>
+            <option value="online">En ligne</option>
+            <option value="offline">Hors ligne</option>
+          </select>
+          <button className={`ml-2 px-2 py-1 rounded ${viewMode === 'card' ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`} onClick={() => setViewMode('card')}><Grid className="w-4 h-4" /></button>
+          <button className={`px-2 py-1 rounded ${viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`} onClick={() => setViewMode('list')}><List className="w-4 h-4" /></button>
         </div>
       </div>
 
@@ -110,16 +125,13 @@ export function TeamView() {
         <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <div className="flex items-center space-x-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">{t('team.active_loan_requests_title')}</h3>
+            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">Demandes de prêt actives</h3>
           </div>
           <div className="space-y-2">
             {activeLoanRequests.map((loan) => (
-              <div key={loan.id} className="text-sm text-yellow-700 dark:text-yellow-300">
-                {t('team.loan_request_info', {
-                  fromService: getServiceName(loan.fromServiceId),
-                  toService: getServiceName(loan.toServiceId),
-                  status: loan.status
-                })}
+              <div key={loan.id || loan.employeeId + '-' + loan.fromServiceId + '-' + loan.toServiceId} className="text-sm text-yellow-700 dark:text-yellow-300">
+                Prêt d'employé du {safeDepartments.find(d => d.id === loan.fromServiceId)?.name} vers {safeDepartments.find(d => d.id === loan.toServiceId)?.name} -
+                <span className="font-medium ml-1 capitalize">{loan.status}</span>
               </div>
             ))}
           </div>
@@ -131,42 +143,38 @@ export function TeamView() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('team.total_members_label')}</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{users.length}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Membres</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{totalMembers}</p>
             </div>
             <Users className="w-8 h-8 text-primary-600" />
           </div>
         </div>
-
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('team.online_label')}</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                {/* Donnée non disponible pour le moment */}
-                {t('team.na_placeholder')}
-              </p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">En ligne</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{onlineMembers}</p>
             </div>
             <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
               <div className="w-4 h-4 bg-white rounded-full" />
             </div>
           </div>
         </div>
-
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('team.services_label')}</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{services.length}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Services</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{safeDepartments.length}</p>
             </div>
-            <Briefcase className="w-8 h-8 text-blue-500" />
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <Users className="w-4 h-4 text-white" />
+            </div>
           </div>
         </div>
-
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('team.active_loans_label')}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Prêts Actifs</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{activeLoanRequests.length}</p>
             </div>
             <AlertTriangle className="w-8 h-8 text-orange-600" />
@@ -174,161 +182,183 @@ export function TeamView() {
         </div>
       </div>
 
-      {/* Team Members Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {users.map((member) => {
-          const memberStats = getUserStats(member.id);
-          const memberTasks = getUserTasks(member.id);
-          
-          return (
+      {/* Team Members Grid or List */}
+      {viewMode === 'card' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredUsers.map((member) => (
             <div
-              key={member.id}
+              key={member.id || member.username}
               className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex items-start space-x-4">
                 <div className="relative">
-                  {member.profilePhoto ? (
-                    <img
-                      src={getProfilePhotoUrl(member.profilePhoto)}
-                      alt={member.fullName || `${member.firstName} ${member.lastName}`}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-primary-500 shadow"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
-                      <span className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                        {member.firstName?.[0]}{member.lastName?.[0]}
-                      </span>
-                    </div>
-                  )}
-                  {memberStats.overdue > 0 && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {memberStats.overdue}
-                    </div>
-                  )}
+                  <img src={getProfilePic(member)} alt="avatar" className="w-12 h-12 rounded-full object-cover bg-gray-300 dark:bg-gray-600" />
+                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${
+                    member.isOnline ? 'bg-green-500' : 'bg-gray-400'
+                  }`} />
                 </div>
-                
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                    {member.firstName} {member.lastName}
+                    {member.fullName || member.username}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">{getServiceName(member.service)}</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">{safeDepartments.find(d => d.id === member.service)?.name || member.service}</p>
                   <span className={`inline-block px-2 py-1 text-xs rounded-full mt-2 ${getRoleColor(member.role)}`}>
                     {getRoleLabel(member.role)}
                   </span>
                 </div>
               </div>
-
-              {/* Statistiques des tâches */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-1">
-                    <CheckSquare className="w-4 h-4 text-blue-500" />
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">{memberStats.total}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('team.total_tasks_label')}</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-1">
-                    <CheckSquare className="w-4 h-4 text-green-500" />
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">{memberStats.completed}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('team.completed_tasks_label')}</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-1">
-                    <Clock className="w-4 h-4 text-orange-500" />
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">{memberStats.pending}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('team.pending_tasks_label')}</p>
-                </div>
-              </div>
-
-              {/* Tâches récentes */}
-              {memberTasks.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('team.recent_tasks_title')}</h4>
-                  <div className="space-y-1">
-                    {memberTasks.slice(0, 2).map((task) => (
-                      <div key={task.id} className="flex items-center space-x-2 text-sm">
-                        <div className={`w-2 h-2 rounded-full ${
-                          task.status === 'completed' ? 'bg-green-500' :
-                          task.status === 'in_progress' ? 'bg-blue-500' :
-                          'bg-gray-400'
-                        }`} />
-                        <span className="text-gray-700 dark:text-gray-300 truncate">{task.title}</span>
-                      </div>
-                    ))}
-                    {memberTasks.length > 2 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">+{memberTasks.length - 2} {t('team.more_tasks_text')}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
               <div className="mt-4 space-y-2">
                 <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                   <Mail className="w-4 h-4" />
                   <span className="truncate">{member.email}</span>
                 </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <Phone className="w-4 h-4" />
+                  <span>{member.phone}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <MapPin className="w-4 h-4" />
+                  <span>{member.bio}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  <span>{getStatusLabel(member)}</span>
+                </div>
               </div>
-
               <div className="mt-4 flex space-x-2">
-                <button 
-                  onClick={() => console.log('Envoyer message à', member.firstName, member.lastName)}
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg text-sm transition-colors"
-                  title={t('team.send_message_tooltip', { firstName: member.firstName, lastName: member.lastName })}
-                  aria-label={t('team.send_message_aria_label', { firstName: member.firstName, lastName: member.lastName })}
-                >
-                  {t('team.send_message_button')}
+                <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => handleOpenMessage(member)}>
+                  <MessageCircle className="w-4 h-4" /> Message
                 </button>
-                <button className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm transition-colors"
-                  title={t('team.view_profile_tooltip', { firstName: member.firstName, lastName: member.lastName })}
-                  aria-label={t('team.view_profile_aria_label', { firstName: member.firstName, lastName: member.lastName })}
-                >
-                  {t('team.view_profile_button')}
+                <button className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => setSelectedUser(member)}>
+                  <UserIcon className="w-4 h-4" /> Profil
+                </button>
+                <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => handleAssignTask(member)}>
+                  <Plus className="w-4 h-4" /> Assigner une tâche
                 </button>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <thead>
+              <tr>
+                <th className="px-4 py-2">Avatar</th>
+                <th className="px-4 py-2">Nom</th>
+                <th className="px-4 py-2">Service</th>
+                <th className="px-4 py-2">Rôle</th>
+                <th className="px-4 py-2">Statut</th>
+                <th className="px-4 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(member => (
+                <tr key={member.id || member.username} className="border-t border-gray-100 dark:border-gray-700">
+                  <td className="px-4 py-2"><img src={getProfilePic(member)} alt="avatar" className="w-8 h-8 rounded-full object-cover bg-gray-300 dark:bg-gray-600" /></td>
+                  <td className="px-4 py-2">{member.fullName || member.username}</td>
+                  <td className="px-4 py-2">{safeDepartments.find(d => d.id === member.service)?.name || member.service}</td>
+                  <td className="px-4 py-2"><span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(member.role)}`}>{getRoleLabel(member.role)}</span></td>
+                  <td className="px-4 py-2">{getStatusLabel(member)}</td>
+                  <td className="px-4 py-2 flex gap-1">
+                    <button className="bg-primary-600 hover:bg-primary-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => handleOpenMessage(member)}><MessageCircle className="w-4 h-4" />Message</button>
+                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => setSelectedUser(member)}><UserIcon className="w-4 h-4" />Profil</button>
+                    <button className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => handleAssignTask(member)}><Plus className="w-4 h-4" />Assigner</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* Services Section */}
+      {/* Departments Section */}
       <div className="mt-8">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">{t('team.services_title')}</h3>
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Services</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {services.map((dept) => {
-            const head = users.find(u => u.id === dept.headId);
-            return (
-              <div
-                key={dept.id}
-                className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6"
-              >
-                <div className="flex items-center space-x-3 mb-3">
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: dept.color }}
-                  />
-                  <h4 className="font-semibold text-gray-900 dark:text-white">{dept.name}</h4>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{dept.description}</p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    {dept.memberIds.length} {t('team.members_text', { count: dept.memberIds.length })}
-                  </span>
-                  <span className="text-primary-600 dark:text-primary-400 font-medium">
-                    {t('team.head_text')}: {head ? `${head.firstName} ${head.lastName}`.split(' ')[0] : t('team.na_placeholder')}
-                  </span>
-                </div>
+          {safeDepartments.map((dept) => (
+            <div
+              key={dept.id}
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6"
+            >
+              <div className="flex items-center space-x-3 mb-3">
+                <div
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: dept.color }}
+                />
+                <h4 className="font-semibold text-gray-900 dark:text-white">{dept.name}</h4>
               </div>
-            )
-          })}
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{dept.description}</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">
+                  {dept.memberIds?.length || 0} membre{dept.memberIds?.length > 1 ? 's' : ''}
+                </span>
+                <span className="text-primary-600 dark:text-primary-400 font-medium">
+                  Chef: {safeUsers.find(m => m.id === dept.headId)?.fullName?.split(' ')[0] || safeUsers.find(m => m.id === dept.headId)?.username}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Employee Loan Modal */}
-      {showLoanModal && (
-        <EmployeeLoanModal onClose={() => setShowLoanModal(false)} />
+      {/* Modal fiche membre détaillée */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setSelectedUser(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2" onClick={() => setSelectedUser(null)}><UserIcon /></button>
+            <div className="flex items-center gap-4 mb-4">
+              <img src={getProfilePic(selectedUser)} alt="avatar" className="w-16 h-16 rounded-full object-cover bg-gray-300 dark:bg-gray-600" />
+              <div>
+                <div className="font-semibold text-lg">{selectedUser.fullName || selectedUser.username}</div>
+                <div className="text-xs text-gray-500">{getRoleLabel(selectedUser.role)} {selectedUser.service ? `- ${safeDepartments.find((d: any) => d.id === selectedUser.service)?.name}` : ''}</div>
+                <div className="text-xs text-gray-400 mt-1">{getStatusLabel(selectedUser)}</div>
+              </div>
+            </div>
+            <div className="mb-2 font-semibold">Tâches en cours</div>
+            <ul className="mb-4 max-h-32 overflow-y-auto">
+              {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status !== 'completed').map(t => (
+                <li key={t.id} className="text-sm mb-1">{t.title} <span className="text-xs text-gray-400">({t.status})</span></li>
+              ))}
+              {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status !== 'completed').length === 0 && (
+                <li className="text-xs text-gray-400">Aucune tâche en cours</li>
+              )}
+            </ul>
+            <div className="mb-2 font-semibold">Tâches terminées</div>
+            <ul className="mb-4 max-h-32 overflow-y-auto">
+              {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status === 'completed').map(t => (
+                <li key={t.id} className="text-sm mb-1">{t.title}</li>
+              ))}
+              {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status === 'completed').length === 0 && (
+                <li className="text-xs text-gray-400">Aucune tâche terminée</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Modal messagerie interne (ouvre MessagesView sur la conversation directe) */}
+      {showMessageModal && messageTo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleCloseMessageModal}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-3xl relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2 z-10" onClick={handleCloseMessageModal}><MessageCircle /></button>
+            <MessagesView directUser={messageTo} onClose={handleCloseMessageModal} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal assignation rapide de tâche */}
+      {showTaskModal && taskModalAssignee && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleCloseTaskModal}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2 z-10" onClick={handleCloseTaskModal}><Plus /></button>
+            <TaskModal
+              task={null}
+              onClose={handleCloseTaskModal}
+              defaultAssignedTo={[taskModalAssignee.id]}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
