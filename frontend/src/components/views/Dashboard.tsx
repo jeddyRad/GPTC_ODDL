@@ -36,12 +36,12 @@ export function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-red-500 bg-red-100 dark:bg-red-900/20 p-4 rounded-lg">
-          <p>Une erreur est survenue lors du chargement des données.</p>
+          <p>{t('dashboard.loadingError', 'Une erreur est survenue lors du chargement des données.')}</p>
           <button 
             onClick={() => window.location.reload()} 
             className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
           >
-            Réessayer
+            {t('common.retry')}
           </button>
         </div>
       </div>

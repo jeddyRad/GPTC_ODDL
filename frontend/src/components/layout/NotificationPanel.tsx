@@ -53,14 +53,14 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
         navigate(`/tasks/${notification.relatedId}`);
         break;
       case 'project_update':
-        navigate(`/dashboard/projects/${notification.relatedId}`);
+        navigate(`/projects/${notification.relatedId}`);
         break;
       case 'security_alert':
-        navigate(`/dashboard/security`);
+        navigate(`/security`);
         break;
       default:
         // Par défaut, aller sur la page notifications
-        navigate('/dashboard/notifications');
+        navigate('/notifications');
     }
   };
 

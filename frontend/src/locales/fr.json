@@ -53,7 +53,8 @@
       "personal": "Tâches personnelles",
       "project": "Tâches de projet",
       "service": "Tâches de service"
-    }
+    },
+    "loadingServices": "Chargement des services..."
   },
   "usersPage": {
     "title": "Gestion des Utilisateurs",
@@ -82,8 +83,17 @@
     "cancel": "Annuler",
     "save": "Enregistrer",
     "create": "Créer",
-    "userInvalidId": "Erreur: ID utilisateur invalide"
-
+    "userInvalidId": "Erreur: ID utilisateur invalide",
+    "errors": "Erreurs",
+    "closeAll": "Tout fermer",
+    "retry": "Réessayer",
+    "back": "Retour",
+    "home": "Accueil"
+  },
+  "errorBoundary": {
+    "title": "Oups ! Quelque chose s'est mal passé",
+    "description": "Une erreur inattendue s'est produite. Veuillez réessayer ou contacter le support si le problème persiste.",
+    "details": "Détails de l'erreur (développement)"
   },
   "calendar": {
     "legend": {
@@ -481,7 +491,17 @@
     "confirmDelete": "Êtes-vous sûr de vouloir supprimer le service \"{{serviceName}}\" ?"
   },
   "notifications": {
-    "markAllRead": "Tout marquer comme lu"
+    "markAllRead": "Tout marquer comme lu",
+    "taskAssignedTitle": "Nouvelle tâche assignée",
+    "taskAssignedMessage": "La tâche « {{task}} » vous a été assignée.",
+    "deadlineApproachingTitle": "Échéance proche",
+    "deadlineApproachingMessage": "La tâche « {{task}} » arrive à échéance le {{date}}.",
+    "commentMentionTitle": "Vous avez été mentionné",
+    "commentMentionMessage": "{{author}} vous a mentionné dans un commentaire sur la tâche « {{task}} ».",
+    "projectUpdateTitle": "Mise à jour de projet",
+    "projectUpdateMessage": "Le projet « {{project}} » a été mis à jour.",
+    "securityAlertTitle": "Alerte de sécurité",
+    "securityAlertMessage": "{{message}}"
   },
   "tasks": {
     "title": "Titre",
@@ -525,7 +545,8 @@
     "totalSecurityNotifications": "Notifications de sécurité totaux",
     "totalSecurityMessages": "Messages de sécurité totaux",
     "totalSecurityComments": "Commentaires de sécurité totaux",
-    "totalSecurityAttachments": "Pièces jointes de sécurité totaux"
+    "totalSecurityAttachments": "Pièces jointes de sécurité totaux",
+    "loadingError": "Une erreur est survenue lors du chargement des données."
   },
   "attachment":{
     "uploading":"charger"

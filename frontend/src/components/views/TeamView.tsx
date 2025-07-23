@@ -5,6 +5,26 @@ import { TaskModal } from '@/components/modals/TaskModal';
 import { MessagesView } from '@/components/views/MessagesView';
 import { User, Task } from '@/types';
 
+// 1. Composant utilitaire pour avatar avec photo, initiales et badge de statut
+function ProfileAvatar({ user, size = 48 }: { user: User, size?: number }) {
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      {user.profilePhoto ? (
+        <img src={user.profilePhoto} alt="avatar" className="rounded-full object-cover bg-gray-300 dark:bg-gray-600 border border-gray-200 dark:border-gray-700" style={{ width: size, height: size }} />
+      ) : (
+        <span className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-700 text-white font-bold border border-gray-200 dark:border-gray-700"
+          style={{ width: size, height: size, fontSize: size / 2 }}
+          aria-label={user.fullName || user.username}
+        >
+          {(user.fullName || user.username).split(' ').map(n => n[0]).join('').slice(0, 2)}
+        </span>
+      )}
+      {/* Badge statut en ligne/hors ligne */}
+      <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${user.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+    </div>
+  );
+}
+
 export function TeamView() {
   const { users, services, employeeLoans, tasks } = useData();
   const [search, setSearch] = useState('');
@@ -71,6 +91,8 @@ export function TeamView() {
 
   // Ouvre la messagerie avec l'utilisateur (modale MessagesView centrée sur la conversation)
   const handleOpenMessage = (user: User) => {
+    // Guard : n'ouvre pas la modale si elle est déjà ouverte ou si messageTo est déjà défini
+    if (showMessageModal || messageTo) return;
     setMessageTo(user);
     setShowMessageModal(true);
   };
@@ -117,6 +139,7 @@ export function TeamView() {
           </select>
           <button className={`ml-2 px-2 py-1 rounded ${viewMode === 'card' ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`} onClick={() => setViewMode('card')}><Grid className="w-4 h-4" /></button>
           <button className={`px-2 py-1 rounded ${viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`} onClick={() => setViewMode('list')}><List className="w-4 h-4" /></button>
+          <button className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 ml-2" onClick={() => { setFilterService(''); setFilterRole(''); setFilterOnline(''); setSearch(''); }} aria-label="Réinitialiser les filtres" title="Réinitialiser les filtres">Réinitialiser</button>
         </div>
       </div>
 
@@ -192,10 +215,7 @@ export function TeamView() {
             >
               <div className="flex items-start space-x-4">
                 <div className="relative">
-                  <img src={getProfilePic(member)} alt="avatar" className="w-12 h-12 rounded-full object-cover bg-gray-300 dark:bg-gray-600" />
-                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${
-                    member.isOnline ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
+                  <ProfileAvatar user={member} size={48} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
@@ -225,15 +245,31 @@ export function TeamView() {
                   <span>{getStatusLabel(member)}</span>
                 </div>
               </div>
+              {/* Remplace les gros boutons d'action par des boutons icônes compacts */}
               <div className="mt-4 flex space-x-2">
-                <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => handleOpenMessage(member)}>
-                  <MessageCircle className="w-4 h-4" /> Message
+                <button
+                  className="p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-full transition-colors focus:ring-2 focus:ring-primary-400"
+                  aria-label={`Envoyer un message à ${member.fullName || member.username}`}
+                  title={`Envoyer un message à ${member.fullName || member.username}`}
+                  onClick={() => handleOpenMessage(member)}
+                >
+                  <MessageCircle className="w-5 h-5" />
                 </button>
-                <button className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => setSelectedUser(member)}>
-                  <UserIcon className="w-4 h-4" /> Profil
+                <button
+                  className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full transition-colors focus:ring-2 focus:ring-primary-400"
+                  aria-label={`Voir le profil de ${member.fullName || member.username}`}
+                  title={`Voir le profil de ${member.fullName || member.username}`}
+                  onClick={() => setSelectedUser(member)}
+                >
+                  <UserIcon className="w-5 h-5" />
                 </button>
-                <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1" onClick={() => handleAssignTask(member)}>
-                  <Plus className="w-4 h-4" /> Assigner une tâche
+                <button
+                  className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors focus:ring-2 focus:ring-green-400"
+                  aria-label={`Assigner une tâche à ${member.fullName || member.username}`}
+                  title={`Assigner une tâche à ${member.fullName || member.username}`}
+                  onClick={() => handleAssignTask(member)}
+                >
+                  <Plus className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -255,15 +291,15 @@ export function TeamView() {
             <tbody>
               {filteredUsers.map(member => (
                 <tr key={member.id || member.username} className="border-t border-gray-100 dark:border-gray-700">
-                  <td className="px-4 py-2"><img src={getProfilePic(member)} alt="avatar" className="w-8 h-8 rounded-full object-cover bg-gray-300 dark:bg-gray-600" /></td>
+                  <td className="px-4 py-2"><ProfileAvatar user={member} size={32} /></td>
                   <td className="px-4 py-2">{member.fullName || member.username}</td>
                   <td className="px-4 py-2">{safeDepartments.find(d => d.id === member.service)?.name || member.service}</td>
                   <td className="px-4 py-2"><span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(member.role)}`}>{getRoleLabel(member.role)}</span></td>
                   <td className="px-4 py-2">{getStatusLabel(member)}</td>
                   <td className="px-4 py-2 flex gap-1">
-                    <button className="bg-primary-600 hover:bg-primary-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => handleOpenMessage(member)}><MessageCircle className="w-4 h-4" />Message</button>
-                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => setSelectedUser(member)}><UserIcon className="w-4 h-4" />Profil</button>
-                    <button className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" onClick={() => handleAssignTask(member)}><Plus className="w-4 h-4" />Assigner</button>
+                    <button className="bg-primary-600 hover:bg-primary-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" aria-label={`Envoyer un message à ${member.fullName || member.username}`} title={`Envoyer un message à ${member.fullName || member.username}`} onClick={() => handleOpenMessage(member)}><MessageCircle className="w-4 h-4" />Message</button>
+                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs flex items-center gap-1" aria-label={`Voir le profil de ${member.fullName || member.username}`} title={`Voir le profil de ${member.fullName || member.username}`} onClick={() => setSelectedUser(member)}><UserIcon className="w-4 h-4" />Profil</button>
+                    <button className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1" aria-label={`Assigner une tâche à ${member.fullName || member.username}`} title={`Assigner une tâche à ${member.fullName || member.username}`} onClick={() => handleAssignTask(member)}><Plus className="w-4 h-4" />Assigner</button>
                   </td>
                 </tr>
               ))}
@@ -305,10 +341,10 @@ export function TeamView() {
       {/* Modal fiche membre détaillée */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setSelectedUser(null)}>
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-lg relative" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <button className="absolute top-2 right-2" onClick={() => setSelectedUser(null)}><UserIcon /></button>
             <div className="flex items-center gap-4 mb-4">
-              <img src={getProfilePic(selectedUser)} alt="avatar" className="w-16 h-16 rounded-full object-cover bg-gray-300 dark:bg-gray-600" />
+              <ProfileAvatar user={selectedUser} size={64} />
               <div>
                 <div className="font-semibold text-lg">{selectedUser.fullName || selectedUser.username}</div>
                 <div className="text-xs text-gray-500">{getRoleLabel(selectedUser.role)} {selectedUser.service ? `- ${safeDepartments.find((d: any) => d.id === selectedUser.service)?.name}` : ''}</div>
@@ -318,7 +354,10 @@ export function TeamView() {
             <div className="mb-2 font-semibold">Tâches en cours</div>
             <ul className="mb-4 max-h-32 overflow-y-auto">
               {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status !== 'completed').map(t => (
-                <li key={t.id} className="text-sm mb-1">{t.title} <span className="text-xs text-gray-400">({t.status})</span></li>
+                <li key={t.id} className="text-sm mb-1 flex items-center gap-2">
+                  {t.title}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ml-2 ${t.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : t.status === 'todo' ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{t.status === 'in_progress' ? 'En cours' : t.status === 'todo' ? 'À faire' : 'Terminé'}</span>
+                </li>
               ))}
               {safeTasks.filter(t => t.assignedTo?.includes(selectedUser.id) && t.status !== 'completed').length === 0 && (
                 <li className="text-xs text-gray-400">Aucune tâche en cours</li>
@@ -339,8 +378,14 @@ export function TeamView() {
 
       {/* Modal messagerie interne (ouvre MessagesView sur la conversation directe) */}
       {showMessageModal && messageTo && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleCloseMessageModal}>
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-3xl relative" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={e => {
+            // Permet la fermeture uniquement si le clic cible l'overlay (pas la modale elle-même)
+            if (e.target === e.currentTarget) handleCloseMessageModal();
+          }}
+        >
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-3xl relative" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <button className="absolute top-2 right-2 z-10" onClick={handleCloseMessageModal}><MessageCircle /></button>
             <MessagesView directUser={messageTo} onClose={handleCloseMessageModal} />
           </div>
@@ -350,7 +395,7 @@ export function TeamView() {
       {/* Modal assignation rapide de tâche */}
       {showTaskModal && taskModalAssignee && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleCloseTaskModal}>
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-0 w-full max-w-lg relative" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <button className="absolute top-2 right-2 z-10" onClick={handleCloseTaskModal}><Plus /></button>
             <TaskModal
               task={null}

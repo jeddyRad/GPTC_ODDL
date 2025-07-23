@@ -7,6 +7,7 @@ import apiClient from '../../services/apiClient';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '@mui/material';
 import { motion } from 'framer-motion';
+import { transformMessage } from '@/utils/dataTransformers';
 
 interface MessagesViewProps {
   directUser?: User;
@@ -35,8 +36,8 @@ export function MessagesView({ directUser, onClose }: MessagesViewProps) {
   useEffect(() => {
     const fetchConversations = async () => {
       try {
-        // Affiche le spinner uniquement lors du tout premier chargement
-        if (isFirstConversationLoad.current && conversations.length === 0) setLoading(true);
+        // Affiche le spinner uniquement si conversations.length === 0 ET loading est true
+        if (loading && conversations.length === 0) setLoading(true);
         const response = await apiClient.get('/api/conversations/');
         const enrichedConversations = response.data.map((conv: any) => ({
           ...conv,
@@ -95,25 +96,24 @@ export function MessagesView({ directUser, onClose }: MessagesViewProps) {
   const isFirstLoad = useRef(true);
   useEffect(() => {
     if (!selectedConversation) return;
-    isFirstLoad.current = true;
+    let isMounted = true;
     const fetchMessages = async () => {
       try {
-        if (isFirstLoad.current) setLoading(true);
         const response = await apiClient.get(`/api/conversations/${selectedConversation.id}/messages/`);
-        setMessages(response.data);
-      } catch (err) {
-        setError('Impossible de charger les messages pour cette conversation.');
-      } finally {
-        if (isFirstLoad.current) {
-          setLoading(false);
-          isFirstLoad.current = false;
+        if (isMounted) {
+          setMessages(response.data.map((m: any) => transformMessage(m, users)));
         }
+      } catch (err) {
+        if (isMounted) setError('Impossible de charger les messages pour cette conversation.');
       }
     };
     fetchMessages();
-    const interval = setInterval(fetchMessages, 2000); // 2 secondes
-    return () => clearInterval(interval);
-  }, [selectedConversation]);
+    const interval = setInterval(fetchMessages, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedConversation, users]);
 
   // Scroll automatique vers le bas à chaque nouveau message
   useEffect(() => {
@@ -128,10 +128,9 @@ export function MessagesView({ directUser, onClose }: MessagesViewProps) {
         const response = await apiClient.post(`/api/conversations/${selectedConversation.id}/messages/`, {
           content: newMessage,
         });
-        setMessages([...messages, response.data]);
+        // Mapping global : enrichit le message envoyé
+        setMessages([...messages, transformMessage(response.data, users)]);
         setNewMessage('');
-        // Rafraîchir les messages après envoi
-        // await refreshMessages(); // Suppression de refreshMessages
       } catch (err) {
         setError('Erreur lors de l\'envoi du message.');
       }
@@ -207,7 +206,8 @@ export function MessagesView({ directUser, onClose }: MessagesViewProps) {
     );
   }
 
-  if (loading) {
+  // Affiche le spinner uniquement si conversations.length === 0 ET loading est true
+  if (loading && conversations.length === 0) {
     return <div className="flex items-center justify-center h-full">Chargement des conversations...</div>;
   }
   if (error) {

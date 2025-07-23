@@ -4,6 +4,7 @@
 
 import { Task, Project, Service, User, Notification, EmployeeLoan, UrgencyMode, Comment, Attachment } from '../types';
 import i18n from '@/i18n';
+import { t } from 'i18next';
 
 /**
  * Transforme un service du format backend vers le format frontend
@@ -117,32 +118,34 @@ export function transformUser(backendUser: any): User {
  * Transforme une notification du format backend vers le format frontend
  */
 export function transformNotification(backendNotification: any): Notification {
-  // Traduction du statut dans le titre/message si type status_update
   let title = backendNotification.title || backendNotification.titre;
   let message = backendNotification.message;
   if ((backendNotification.type || '') === 'status_update') {
     // Chercher le statut dans le message et le traduire
-    const match = /statut.*["“”«»]?([a-zA-Z_]+)["“”«»]?/i.exec(message);
+    // Correction : on recherche le mot 'statut' suivi d'un nom de statut, et on remplace proprement
+    const match = /statut(?: de la tâche)? ["“”«»]?([a-zA-Z_]+)["“”«»]?/i.exec(message);
     if (match && match[1]) {
       const frStatus = translateStatus(match[1]);
+      // On remplace toute la séquence 'statut ... à <status>' par 'statut ... à <frStatus>'
       message = message.replace(match[1], frStatus);
+      // Correction : éviter la répétition de 'statut' ou 'Statut inconnu' en double
+      message = message.replace(/Statut inconnutatut/g, 'Statut inconnu');
+      if (title && title.includes(match[1])) {
+        title = title.replace(match[1], frStatus);
+      }
     }
-    // Optionnel : traduire le titre aussi
-    if (title && title.toLowerCase().includes('statut')) {
-      title = i18n.t('task.status');
-    }
+    // Harmonisation : si le message commence par 'Le Statut inconnutatut', corriger en 'Le statut inconnu'
+    message = message.replace(/^Le Statut inconnutatut/, 'Le statut inconnu');
   }
   return {
     id: backendNotification.id,
-    userId: backendNotification.userId || backendNotification.utilisateur || backendNotification.user,
-    type: backendNotification.type || 'task_assigned',
+    userId: backendNotification.userId || backendNotification.utilisateur,
+    type: backendNotification.type,
     title,
     message,
-    isRead: typeof backendNotification.isRead !== 'undefined' ? backendNotification.isRead : (typeof backendNotification.est_lue !== 'undefined' ? backendNotification.est_lue : false),
-    createdAt: backendNotification.createdAt
-      ? new Date(backendNotification.createdAt)
-      : (backendNotification.date_creation ? new Date(backendNotification.date_creation) : new Date()),
-    relatedId: backendNotification.relatedId || backendNotification.related_id || '',
+    isRead: backendNotification.isRead ?? backendNotification.est_lue ?? false,
+    createdAt: backendNotification.createdAt ? new Date(backendNotification.createdAt) : new Date(),
+    relatedId: backendNotification.relatedId,
     priority: backendNotification.priority || backendNotification.priorite || 'medium',
     expiresAt: backendNotification.expiresAt ? new Date(backendNotification.expiresAt) : undefined,
   };
@@ -326,17 +329,64 @@ export function transformCommentToBackend(frontendComment: Partial<Comment>): an
   };
 }
 
-// Fonction utilitaire pour traduire les statuts de tâche
-export function translateStatus(status: string): string {
-  const map: Record<string, string> = {
-    'todo': i18n.t('task.todo'),
-    'in_progress': i18n.t('task.inProgress'),
-    'review': i18n.t('task.review'),
-    'completed': i18n.t('task.completed'),
-    'planning': i18n.t('project.planning'),
-    'active': i18n.t('project.active'),
-    'on_hold': i18n.t('project.onHold'),
-    'completed_project': i18n.t('project.completed'),
+/**
+ * Transforme un message du format backend vers le format frontend
+ * users?: User[] permet d'enrichir avec l'objet User complet (profilePhoto, etc.)
+ */
+export function transformMessage(backendMessage: any, users?: User[]): Message {
+  // Supporte sender ou author (backend)
+  let author = backendMessage.author || backendMessage.sender;
+  if (users && author && typeof author === 'string') {
+    // Si author est un id, enrichir avec l'objet User
+    const userObj = users.find(u => u.id === author);
+    if (userObj) author = userObj;
+  } else if (users && author && author.id) {
+    // Si author est un objet partiel, enrichir avec l'objet User complet si dispo
+    const userObj = users.find(u => u.id === author.id);
+    if (userObj) author = { ...userObj, ...author };
+  }
+  return {
+    id: backendMessage.id,
+    content: backendMessage.content || backendMessage.contenu,
+    author,
+    conversation: backendMessage.conversation || backendMessage.conversation_id,
+    timestamp: backendMessage.timestamp ? new Date(backendMessage.timestamp) : (backendMessage.createdAt ? new Date(backendMessage.createdAt) : new Date()),
   };
-  return map[status] || status;
+}
+
+/**
+ * Transforme un message du format frontend vers le format backend
+ */
+export function transformMessageToBackend(frontendMessage: Partial<Message>): any {
+  return {
+    content: frontendMessage.content,
+    conversation: frontendMessage.conversation,
+    // Ne pas envoyer author côté frontend (géré par le backend via l'utilisateur connecté)
+  };
+}
+
+/**
+ * Traduit un statut technique en français via i18n
+ */
+export function translateStatus(status: string): string {
+  switch (status) {
+    case 'todo':
+      return t('taskBoard.columns.todo', 'À faire');
+    case 'in_progress':
+      return t('taskBoard.columns.inProgress', 'En cours');
+    case 'review':
+      return t('taskBoard.columns.review', 'En relecture');
+    case 'completed':
+      return t('taskBoard.columns.completed', 'Terminé');
+    case 'planning':
+      return t('projects.onPlanning', 'En planification');
+    case 'active':
+      return t('projects.activeProjects', 'Projets actifs');
+    case 'on_hold':
+      return t('projects.onHold', 'En pause');
+    case 'completed_project':
+      return t('projects.completed', 'Terminé');
+    default:
+      return t('task.status.unknown', 'Statut inconnu');
+  }
 }

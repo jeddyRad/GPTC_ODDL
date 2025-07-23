@@ -1,18 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, CheckCircle, Clock, MessageSquare, AlertTriangle, Trash2 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '@/services/api';
+import { transformNotification } from '@/utils/dataTransformers';
+import { Notification } from '@/types';
 
 export function NotificationsView() {
   const navigate = useNavigate();
-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } = useData();
+  const { markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } = useData();
   const { user } = useAuth();
   const { addNotification } = useNotification();
   const [filter, setFilter] = useState('all');
   const { t } = useTranslation();
+  // Ajout d'un state local pour les notifications
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchNotifications = async () => {
+      try {
+        const data = await apiService.getNotifications();
+        if (isMounted) setNotifications((data || []).map(transformNotification));
+      } catch (error) {
+        if (isMounted) console.error('Erreur lors du rafraîchissement des notifications:', error);
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const userNotifications = notifications.filter(n => n.userId === user?.id);
 

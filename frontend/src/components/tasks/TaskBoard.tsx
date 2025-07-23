@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, AlertTriangle } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,18 +7,40 @@ import { TaskColumn } from './TaskColumn';
 import { TaskModal } from '@/components/modals/TaskModal';
 import { Button } from '@/components/common/Button';
 import { useTranslation } from 'react-i18next';
+import { apiService } from '@/services/api';
+import { transformTask } from '@/utils/dataTransformers';
 
 // Composant principal du tableau Kanban des tâches, avec filtres et gestion du mode urgence
 export function TaskBoard() {
-  const { tasks, searchTerm, urgencyModes, services, projects } = useData();
+  // Tous les hooks doivent être ici, avant tout return ou if
+  const { searchTerm, urgencyModes, services, projects } = useData();
   const { user } = useAuth();
   const { t } = useTranslation();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  // const [filterService, setFilterService] = useState('all'); // Supprimé car inutilisé
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
-  const [filterTaskType, setFilterTaskType] = useState('all'); // 'all', 'personal', 'project', 'service'
+  const [filterTaskType, setFilterTaskType] = useState('all');
+  // State local pour le polling
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTasks = async () => {
+      try {
+        const data = await apiService.getTasks();
+        if (isMounted) setLocalTasks((data || []).map(transformTask));
+      } catch (error) {
+        if (isMounted) console.error('Erreur lors du rafraîchissement des tâches:', error);
+      }
+    };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Log temporaire pour diagnostiquer le service du manager
   console.log('user.service', user?.service);
@@ -27,7 +49,7 @@ export function TaskBoard() {
 
   // Ne pas afficher le Kanban si la liste des services n'est pas chargée
   if (!services || services.length === 0) {
-    return <div className="p-6 text-center text-gray-500">Chargement des services...</div>;
+    return <div className="p-6 text-center text-gray-500">{t('taskBoard.loadingServices', 'Chargement des services...')}</div>;
   }
 
   const columns = [
@@ -46,9 +68,9 @@ export function TaskBoard() {
   // Filtrage avancé selon le rôle
   let userTasks: Task[] = [];
   if (user?.role === 'ADMIN') {
-    userTasks = tasks;
+    userTasks = localTasks;
   } else if (user?.role === 'MANAGER') {
-    userTasks = tasks.filter(task =>
+    userTasks = localTasks.filter(task =>
       (task.serviceId && task.serviceId === (user.service || '')) ||
       (Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)) ||
       (task.creatorId === user.id) ||
@@ -63,7 +85,7 @@ export function TaskBoard() {
       ))
     );
   } else if (user?.role === 'EMPLOYEE') {
-    userTasks = tasks.filter(task =>
+    userTasks = localTasks.filter(task =>
       (Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)) ||
       (task.creatorId === user.id) ||
       // Tâches de service : si l'employé est membre du service
@@ -241,7 +263,7 @@ export function TaskBoard() {
         </div>
 
         {/* Tableau Kanban */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 overflow-hidden">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 overflow-y-auto">
           {columns.map((column) => (
             <TaskColumn
               key={column.id}

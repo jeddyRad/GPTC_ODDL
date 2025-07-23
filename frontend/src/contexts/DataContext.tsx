@@ -98,13 +98,6 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   // Polling global toutes les 2 secondes pour rafraîchir toutes les entités principales
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      refreshData();
-    }, 2000); // 2 secondes
-    return () => clearInterval(interval);
-  }, [user]);
 
   // Toast automatique pour chaque nouvelle notification non lue
   const notifiedIds = useRef<Set<string>>(new Set());

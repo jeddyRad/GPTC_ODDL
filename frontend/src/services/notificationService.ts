@@ -1,4 +1,5 @@
 import { Notification, Task, Project, Comment } from '@/types';
+import { t } from 'i18next';
 
 // Service pour gérer les notifications automatiques
 export class NotificationService {
@@ -18,21 +19,20 @@ export class NotificationService {
 
   // Notification lors de l'assignation d'une tâche
   async notifyTaskAssigned(task: Task, assignedUserIds: string[]) {
-    const promises = assignedUserIds
-      .filter(userId => userId !== this.currentUserId) // Ne pas notifier l'assigneur
-      .map(userId => 
+    const promises = (assignedUserIds || [])
+      .filter((userId: string) => userId !== this.currentUserId)
+      .map((userId: string) =>
         this.addNotification({
           userId,
           type: 'task_assigned',
-          title: 'Nouvelle tâche assignée',
-          message: `La tâche "${task.title}" vous a été assignée.`,
+          title: t('notifications.taskAssignedTitle'),
+          message: t('notifications.taskAssignedMessage', { task: task.title }),
           priority: task.priority === 'urgent' ? 'high' : 'medium',
           relatedId: task.id,
           isRead: false,
         })
       );
-
-    await Promise.all(promises);
+    await Promise.all(promises || []);
   }
 
   // Notification lors d'une mention dans un commentaire
@@ -51,7 +51,7 @@ export class NotificationService {
         })
       );
 
-    await Promise.all(promises);
+    await Promise.all(promises || []);
   }
 
   // Notification d'approche d'échéance
@@ -63,7 +63,7 @@ export class NotificationService {
 
     // Notifier si l'échéance est dans moins de 24h
     if (hoursUntilDeadline <= 24 && hoursUntilDeadline > 0) {
-      const promises = task.assignedTo.map(userId =>
+      const promises = task.assignedTo?.map(userId =>
         this.addNotification({
           userId,
           type: 'deadline_approaching',
@@ -75,7 +75,7 @@ export class NotificationService {
         })
       );
 
-      await Promise.all(promises);
+      await Promise.all(promises || []);
     }
   }
 
@@ -94,11 +94,11 @@ export class NotificationService {
         break;
     }
 
-    const promises = project.teamMembers
-      .filter(userId => userId !== this.currentUserId)
-      .map(userId =>
+    const promises = project.memberDetails
+      ?.filter(member => member.id !== this.currentUserId)
+      .map(member =>
         this.addNotification({
-          userId,
+          userId: member.id,
           type: 'project_update',
           title: 'Mise à jour de projet',
           message,
@@ -108,7 +108,7 @@ export class NotificationService {
         })
       );
 
-    await Promise.all(promises);
+    await Promise.all(promises || []);
   }
 
   // Notification de sécurité

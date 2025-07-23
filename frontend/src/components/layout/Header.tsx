@@ -120,7 +120,14 @@ export function Header() {
                     {user ? `${user.firstName} ${user.lastName}` : ''}
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {user?.role === 'MANAGER' ? t('user.manager') : t('user.employee')}
+                    {/* Affiche le rôle utilisateur adapté */}
+                    {user?.role === 'ADMIN'
+                      ? t('user.admin', 'Administrateur')
+                      : user?.role === 'MANAGER'
+                      ? t('user.manager', 'Manager')
+                      : user?.role === 'DIRECTOR'
+                      ? t('user.director', 'Directeur')
+                      : t('user.employee', 'Employé')}
                   </span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
